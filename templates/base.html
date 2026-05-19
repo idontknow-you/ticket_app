@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>{%block title%}Support System for portbird{%endblock%}</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['"Playfair Display"', 'serif'],
+            sans: ['"Geist"', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {background: #e7f1f3}
+    select {
+      appearance: none;
+      background-image: url("down-arrow.svg");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 20px 20px;
+      padding-right: 40px;  
+    }
+    select:hover {
+      background-color: #807f7f;  /* light gray on hover */
+      cursor: pointer;
+    }
+  </style>
+
+{% block head %}{% endblock %}
+</head>
+
+<body class="font-sans text-gray-900 min-h-screen">
+  <nav class="bg-[#e7f1f3] border-b border-[#2B2822] px-12 py-[18px] flex items-center justify-between">
+    <a href="{{url_for('home')}}" class="flex items-center gap-2">
+      <span class="font-sans font-semibold text-xl text-gray-900">Support System</span>
+    </a>
+
+    <div class="flex items-center gap-6">
+      <a href="{{ url_for('home') }}" class="text-base text-gray-500 hover:text-gray-900 transition">
+        Generate ticket
+      </a>
+      {% if session.get('admin_id') %}
+        <a href="{{ url_for('dashboard') }}" class="text-base text-gray-500 hover:text-gray-900 transition">
+          Dashboard
+        </a>
+        <a href="{{ url_for('logout') }}"
+           class="text-sm bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-900 transition">
+          Sign out
+        </a>
+      {% else %}
+        <a href="{{ url_for('login') }}"
+           class="text-sm bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-900 transition">
+          Admin login
+        </a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <div class="container mx-auto p-6">
+    <h1 class="text-3xl font-serif font-semi-bold mb-6">Welcome to Ticketing System</h1>
+
+    <!-- Ticket Form -->
+    <form action="/generate" method="POST" class="mb-6">
+      <input type="text" name="name" placeholder="Your Name" class="border p-2 mr-2">
+      <input type="text" name="issue" placeholder="Issue" class="border p-2 mr-2">
+      <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Generate Ticket</button>
+    </form>
+  </div>
+
+  {% block content %}{% endblock %}
+</body>
+</html>
