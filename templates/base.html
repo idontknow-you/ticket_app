@@ -52,20 +52,20 @@
     </a>
 
     <div class="flex items-center gap-6">
-      <a href="{{ url_for('home') }}" class="text-base text-gray-500 hover:text-gray-900 transition">
+      <a href="{{ url_for('home') }}" class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
         Generate ticket
       </a>
       {% if session.get('admin_id') %}
-        <a href="{{ url_for('dashboard') }}" class="text-base text-gray-500 hover:text-gray-900 transition">
+        <a href="{{ url_for('dashboard') }}" class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
           Dashboard
         </a>
         <a href="{{ url_for('logout') }}"
-           class="text-sm bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-900 transition">
+           class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-blue-400 transition">
           Sign out
         </a>
       {% else %}
         <a href="{{ url_for('login') }}"
-           class="text-sm bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-900 transition">
+           class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-blue-400 transition">
           Admin login
         </a>
       {% endif %}
@@ -73,7 +73,7 @@
   </nav>
 
   <div class="container mx-auto p-6">
-    <h1 class="text-3xl font-serif font-semi-bold mb-6">Welcome to Ticketing System</h1>
+    <h1 class="text-3xl font-serif font-semi-bold mb-6">Welcome to Support System</h1>
 
     <!-- Ticket Form -->
     <form action="/generate" method="POST" class="mb-6">
