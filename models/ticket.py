@@ -37,8 +37,8 @@ class TicketFieldDefinition(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     field_label = db.Column(db.String(100), nullable=False)
     field_key = db.Column(db.String(100), unique=True, nullable=False)
-    field_type = db.Column(db.String(20), nullable=False)  # text, textarea, select, checkbox, email, number
-    field_options = db.Column(db.Text, nullable=True)      # JSON string, only for select/checkbox
+    field_type = db.Column(db.String(20), nullable=False)
+    field_options = db.Column(db.Text, nullable=True)
     is_required = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     display_order = db.Column(db.Integer, default=0)
@@ -79,16 +79,17 @@ class TicketHistory(db.Model):
 
     editor = db.relationship('User', backref='ticket_changes', lazy=True)
 
+
 class TicketAttachment(db.Model):
     __tablename__ = 'ticket_attachments'
 
     id = db.Column(db.Integer, primary_key=True)
     ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False)
-    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # nullable = public submitter
-    file_name = db.Column(db.String(200), nullable=False)    # original filename shown to user
-    file_path = db.Column(db.String(500), nullable=False)    # path on disk, becomes cloud URL later
-    file_type = db.Column(db.String(50), nullable=False)     # e.g. image/png, application/pdf
-    file_size = db.Column(db.Integer, nullable=False)        # in bytes
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    file_name = db.Column(db.String(200), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_type = db.Column(db.String(50), nullable=False)
+    file_size = db.Column(db.Integer, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     uploader = db.relationship('User', backref='attachments', lazy=True)

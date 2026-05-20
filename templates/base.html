@@ -21,7 +21,8 @@
             sans: ['"Geist"', 'sans-serif']
           }
         }
-      }
+      },
+      safelist: ['pr-8']
     }
   </script>
 
@@ -29,11 +30,12 @@
     body { background: #e7f1f3; }
     select {
       appearance: none;
+      -webkit-appearance: none;
       background-image: url("/static/down-arrow.svg");
       background-repeat: no-repeat;
-      background-position: right 12px center;
-      background-size: 16px 16px;
-      padding-right: 40px;
+      background-position: right 10px center;
+      background-size: 12px 12px;
+      padding-right: 2rem !important; /* same as pr-8 */
     }
     select:hover { cursor: pointer; }
   </style>
