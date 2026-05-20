@@ -10,7 +10,7 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('tickets.dashboard'))
+        return redirect(url_for('public.submit'))
 
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
@@ -28,7 +28,7 @@ def login():
 
         login_user(user)
         next_page = request.args.get('next')
-        return redirect(next_page or url_for('tickets.dashboard'))
+        return redirect(url_for('public.submit'))
 
     return render_template('auth/login.html')
 
@@ -80,7 +80,7 @@ def profile():
 def reset_password(user_id):
     if not current_user.is_superadmin:
         flash('Access denied.', 'error')
-        return redirect(url_for('tickets.dashboard'))
+        return redirect(url_for('public.submit'))
 
     user = User.query.get_or_404(user_id)
     new_password = request.form.get('new_password', '').strip()

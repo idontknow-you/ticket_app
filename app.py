@@ -16,13 +16,19 @@ def create_app():
 
 
     with app.app_context():
+        #Models
         from models.user import User
         from models.ticket import Ticket, TicketFieldDefinition, TicketFieldValue, TicketComment, TicketHistory, TicketAttachment
         from models.permission import UserPermission
         from models.wiki import WikiPage, WikiPageHistory
         from models.settings import Setting
         from models.mail import MailLog, MailTemplate
+
+        #Bluprints
         from routes.auth import auth_bp
+        from routes.public import public_bp
+        app.register_blueprint(public_bp, url_prefix='/')
+
         app.register_blueprint(auth_bp)
 
     @login_manager.user_loader
@@ -35,30 +41,5 @@ def create_app():
 
 app = create_app()
 
-@app.route("/")
-def home():
-    return render_template("base.html")
-
-@app.route("/login")
-def login():
-    return render_template("login.html")
-
-@app.route("/dashboard")
-def dashboard():
-    return render_template("dashboard.html")
-
-@app.route("/")
-def logout():
-    return render_template("base.html")
-
-@app.route("/generate", methods=["POST"])
-def generate_ticket():
-    name = request.form.get("name")
-    issue = request.form.get("issue")
-    new_ticket = Ticket(name=name, issue=issue)
-    db.session.add(new_ticket)
-    db.session.commit()
-    return redirect(url_for("home"))
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)

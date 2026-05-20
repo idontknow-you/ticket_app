@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Ticket Submitted — {{ ticket.ticket_number }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-16">
+  <div class="max-w-lg w-full text-center">
+
+    <!-- Success icon -->
+    <div class="mx-auto mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-green-100">
+      <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
+    </div>
+
+    <h1 class="text-2xl font-bold text-gray-900 mb-2">Your ticket has been submitted!</h1>
+    <p class="text-gray-500 text-sm mb-8">
+      We've received your request and a confirmation has been sent to
+      <strong class="text-gray-700">{{ ticket.submitter_email }}</strong>.
+      Our team will review it shortly.
+    </p>
+
+    <!-- Ticket summary card -->
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-sm text-left overflow-hidden mb-8">
+      <div class="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+        <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">Ticket Reference</span>
+        <span class="font-mono text-sm font-bold text-indigo-600 tracking-wide">{{ ticket.ticket_number }}</span>
+      </div>
+      <div class="px-6 py-5 space-y-3">
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Subject</span>
+          <span class="text-gray-800 font-medium text-right max-w-[60%]">{{ ticket.subject }}</span>
+        </div>
+        {% if ticket.department %}
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Department</span>
+          <span class="text-gray-800">{{ ticket.department }}</span>
+        </div>
+        {% endif %}
+        {% if ticket.module %}
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Module</span>
+          <span class="text-gray-800">{{ ticket.module }}</span>
+        </div>
+        {% endif %}
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Status</span>
+          <span class="inline-flex items-center gap-1.5 text-yellow-700 font-medium">
+            <span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>
+            Open
+          </span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Submitted</span>
+          <span class="text-gray-800">{{ ticket.created_at.strftime('%d %b %Y, %H:%M') }} UTC</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- What's next -->
+    <div class="bg-indigo-50 border border-indigo-100 rounded-xl px-6 py-4 text-sm text-indigo-700 text-left mb-8">
+      <p class="font-semibold mb-1">What happens next?</p>
+      <ul class="space-y-1 text-indigo-600 list-disc list-inside">
+        <li>Our support team will review your ticket.</li>
+        <li>You'll receive updates at <strong>{{ ticket.submitter_email }}</strong>.</li>
+        <li>Keep your ticket number handy: <strong class="font-mono">{{ ticket.ticket_number }}</strong>.</li>
+      </ul>
+    </div>
+
+    <a
+      href="{{ url_for('public.submit') }}"
+      class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-indigo-600 transition font-medium"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Submit another ticket
+    </a>
+
+  </div>
+</div>
+{% endblock %}
