@@ -7,7 +7,7 @@
   <!-- Header row: Back + title -->
   <div class="flex items-center gap-4 mb-10">
     <a href="{{ url_for('tickets.dashboard') }}"
-       class="text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 px-3 py-1.5 rounded transition">
+       class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
       ← Back
     </a>
     <h1 class="text-2xl font-semibold text-gray-800 playfair">Admin Panel</h1>
@@ -40,8 +40,6 @@
           <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Manage</p>
           <h2 class="text-xl font-semibold text-gray-800 playfair group-hover:text-gray-900">Permissions</h2>
         </div>
-        <!-- No meaningful count for permissions, show module count -->
-        <span class="text-3xl font-light text-gray-300 group-hover:text-gray-400 transition">{{ module_count }}</span>
       </div>
       <p class="mt-4 text-sm text-gray-500">Configure per-module access for each user.</p>
       <div class="mt-6 text-sm font-medium text-gray-600 group-hover:text-gray-900 transition flex items-center gap-1">

@@ -10,34 +10,44 @@
   </div>
 
   {# ── User + Module selector ── #}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-      <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-5">Select User & Module</h2>
-      <form method="GET" action="{{ url_for('admin.permissions') }}" class="flex flex-wrap gap-4 items-end">
-    <div class="flex-1 min-w-[180px]">
-      <label class="block text-xs font-medium text-gray-500 mb-1.5">User</label>
-      <select name="user_id" onchange="this.form.submit()"
-              class="w-full rounded-lg border border-gray-200 pl-3 py-2.5 text-sm text-gray-900 bg-white bg-none
-                    focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
-        <option value="">— Select a user —</option>
-        {% for user in users %}
-          <option value="{{ user.id }}" {% if selected_user and selected_user.id == user.id %}selected{% endif %}>
-            {{ user.name }} ({{ user.username }})
-          </option>
-        {% endfor %}
-      </select>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-5">Select User & Module</h2>
+
+    {# User dropdown — carries current module #}
+    <div class="flex flex-wrap gap-4 items-end">
+      <div class="flex-1 min-w-[180px]">
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">User</label>
+        <form method="GET" action="{{ url_for('admin.permissions') }}">
+          {% if selected_module %}<input type="hidden" name="module" value="{{ selected_module }}">{% endif %}
+          <select name="user_id" onchange="this.form.submit()"
+                  class="w-full rounded-lg border border-gray-200 pl-3 py-2.5 text-sm text-gray-900 bg-white bg-none
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+            <option value="">— Select a user —</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if selected_user and selected_user.id == user.id %}selected{% endif %}>
+                {{ user.name }} ({{ user.username }})
+              </option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
+
+      {# Module dropdown — carries current user_id #}
+      <div class="flex-1 min-w-[160px]">
+        <label class="block text-xs font-medium text-gray-500 mb-1.5">Module</label>
+        <form method="GET" action="{{ url_for('admin.permissions') }}">
+          {% if selected_user %}<input type="hidden" name="user_id" value="{{ selected_user.id }}">{% endif %}
+          <select name="module" onchange="this.form.submit()"
+                  class="w-full rounded-lg border border-gray-200 pl-3 py-2.5 text-sm text-gray-900 bg-white bg-none
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+            <option value="">— Select a module —</option>
+            {% for mod in modules %}
+              <option value="{{ mod }}" {% if selected_module == mod %}selected{% endif %}>{{ mod }}</option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
     </div>
-    <div class="flex-1 min-w-[160px]">
-      <label class="block text-xs font-medium text-gray-500 mb-1.5">Module</label>
-      <select name="module" onchange="this.form.submit()"
-              class="w-full rounded-lg border border-gray-200 pl-3 py-2.5 text-sm text-gray-900 bg-white bg-none
-                    focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
-        <option value="">— Select a module —</option>
-        {% for mod in modules %}
-          <option value="{{ mod }}" {% if selected_module == mod %}selected{% endif %}>{{ mod }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </form>
   </div>
 
   {# ── Permission matrix ── #}

@@ -90,8 +90,10 @@ def permissions():
     selected_user = None
     perm_row      = None
 
-    if selected_user_id and selected_module:
+    if selected_user_id:
         selected_user = User.query.get(selected_user_id)
+
+    if selected_user and selected_module:
         perm_row = UserPermission.query.filter_by(
             user_id=selected_user_id,
             module=selected_module
@@ -103,6 +105,7 @@ def permissions():
         modules=MODULES,
         module_map=MODULE_PERMISSION_MAP,
         selected_user=selected_user,
+        selected_user_id=selected_user_id,
         selected_module=selected_module,
         perm_row=perm_row,
     )
@@ -139,11 +142,12 @@ def save_permissions():
     flash('Permissions saved.', 'success')
     return redirect(url_for('admin.permissions', user_id=user_id, module=module))
 
-@admin_bp.route('/admin/panel')
+
+# ── Admin Panel ─────────────────────────────────────────────────────────────
+
+@admin_bp.route('/panel')
 @superadmin_required
 def panel():
-    from models.user import User
-    from models.permission import MODULES
     user_count = User.query.filter_by(is_superadmin=False).count()
     module_count = len(MODULES)
     return render_template('admin/panel.html', user_count=user_count, module_count=module_count)
