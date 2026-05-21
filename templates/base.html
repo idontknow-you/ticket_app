@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 
   <title>{% block title %}Support System{% endblock %}</title>
 
@@ -44,6 +47,21 @@
 </head>
 
 <body class="font-sans text-gray-900 min-h-screen">
+  <script>
+    (function() {
+      const publicPaths = ['/', '/login', '/confirmation'];
+      const isPublic = publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith('/confirmation'));
+      if (!isPublic) {
+        fetch('/auth-check', { cache: 'no-store' })
+          .then(r => r.json())
+          .then(data => {
+            if (!data.authenticated) {
+              window.location.replace('/login');
+            }
+          });
+      }
+    })();
+</script>
 
   <nav class="bg-[#e7f1f3] border-b border-[#2B2822] px-12 py-[18px] flex items-center justify-between">
     <a href="{{ url_for('public.submit') }}" class="font-sans font-semibold text-xl text-gray-900">
@@ -60,6 +78,10 @@
         <a href="{{ url_for('tickets.dashboard') }}"
            class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
           Dashboard
+        </a>
+        <a href="{{ url_for('public.submit') }}"
+         class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
+        Create User
         </a>
         <a href="{{ url_for('auth.logout') }}"
            class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
@@ -92,4 +114,5 @@
   {% block content %}{% endblock %}
 
 </body>
+
 </html>

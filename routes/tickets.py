@@ -57,6 +57,12 @@ def view_ticket(ticket_id):
     agents = User.query.all()
     return render_template('tickets/view_ticket.html', ticket=ticket, agents=agents)
 
+@tickets_bp.after_request
+def add_no_cache(response):
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @tickets_bp.route('/tickets/<int:ticket_id>/update', methods=['POST'])
 @login_required

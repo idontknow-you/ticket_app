@@ -47,5 +47,18 @@ def create_app():
 
 app = create_app()
 
+@app.after_request
+def add_no_cache(response):
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/auth-check')
+def auth_check():
+    from flask_login import current_user
+    from flask import jsonify
+    return jsonify({'authenticated': current_user.is_authenticated})
+
 if __name__ == '__main__':
     app.run(debug=True)

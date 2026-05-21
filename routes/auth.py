@@ -10,7 +10,7 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('public.submit'))
+        return redirect(url_for('ticket.dashboard'))
 
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
@@ -28,7 +28,7 @@ def login():
 
         login_user(user)
         next_page = request.args.get('next')
-        return redirect(url_for('public.submit'))
+        return redirect(url_for('tickets.dashboard'))
 
     return render_template('auth/login.html')
 
@@ -37,7 +37,19 @@ def login():
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('auth.login'))
+    response = redirect(url_for('auth.login'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@auth_bp.after_request
+def add_no_cache(response):
+    if not current_user.is_authenticated:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
 
 
 @auth_bp.route('/change-password', methods=['POST'])
