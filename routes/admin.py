@@ -24,8 +24,22 @@ def superadmin_required(f):
 @login_required
 @superadmin_required
 def users():
-    all_users = User.query.filter_by(is_superadmin=False).order_by(User.created_at.desc()).all()
+    all_users = User.query.filter_by(is_superadmin=False, is_active=True).order_by(User.created_at.desc()).all()
     return render_template('admin/users.html', users=all_users)
+
+
+@admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@superadmin_required
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.is_superadmin:
+        flash('Cannot delete superadmin.', 'error')
+        return redirect(url_for('admin.users'))
+    user.is_active = False
+    db.session.commit()
+    flash(f'User "{user.name}" removed.', 'success')
+    return redirect(url_for('admin.users'))
 
 
 @admin_bp.route('/users/create', methods=['POST'])
@@ -61,19 +75,6 @@ def create_user():
     flash(f'User "{name}" created successfully.', 'success')
     return redirect(url_for('admin.users'))
 
-
-@admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
-@login_required
-@superadmin_required
-def delete_user(user_id):
-    user = User.query.get_or_404(user_id)
-    if user.is_superadmin:
-        flash('Cannot delete superadmin.', 'error')
-        return redirect(url_for('admin.users'))
-    db.session.delete(user)
-    db.session.commit()
-    flash(f'User "{user.name}" deleted.', 'success')
-    return redirect(url_for('admin.users'))
 
 
 # ── Permissions ─────────────────────────────────────────────────────────────
@@ -132,8 +133,6 @@ def save_permissions():
         db.session.add(perm)
 
     allowed = MODULE_PERMISSION_MAP[module]
-    perm.can_view   = bool(request.form.get('can_view'))   if allowed['can_view']   else False
-    perm.can_create = bool(request.form.get('can_create')) if allowed['can_create'] else False
     perm.can_edit   = bool(request.form.get('can_edit'))   if allowed['can_edit']   else False
     perm.can_delete = bool(request.form.get('can_delete')) if allowed['can_delete'] else False
     perm.can_assign = bool(request.form.get('can_assign')) if allowed['can_assign'] else False

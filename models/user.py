@@ -13,3 +13,4 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(200), nullable=False)
     is_superadmin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)

@@ -21,9 +21,9 @@ class UserPermission(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     module = db.Column(db.String(50), nullable=False)  # e.g. 'Tickets', 'Wiki'
 
-    can_view   = db.Column(db.Boolean, default=False)
-    can_create = db.Column(db.Boolean, default=False)
-    can_edit   = db.Column(db.Boolean, default=False)
+    can_view   = db.Column(db.Boolean, default=True)
+    can_create = db.Column(db.Boolean, default=True)
+    can_edit   = db.Column(db.Boolean, default=True)
     can_delete = db.Column(db.Boolean, default=False)
     can_assign = db.Column(db.Boolean, default=False)
 
