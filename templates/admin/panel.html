@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-6 py-10">
+
+  <!-- Header row: Back + title -->
+  <div class="flex items-center gap-4 mb-10">
+    <a href="{{ url_for('tickets.dashboard') }}"
+       class="text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 px-3 py-1.5 rounded transition">
+      ← Back
+    </a>
+    <h1 class="text-2xl font-semibold text-gray-800 playfair">Admin Panel</h1>
+  </div>
+
+  <!-- Two cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+    <!-- Users card -->
+    <a href="{{ url_for('admin.users') }}"
+       class="group bg-white border border-gray-200 rounded-xl p-7 hover:shadow-md hover:border-gray-300 transition-all">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Manage</p>
+          <h2 class="text-xl font-semibold text-gray-800 playfair group-hover:text-gray-900">Users</h2>
+        </div>
+        <span class="text-3xl font-light text-gray-300 group-hover:text-gray-400 transition">{{ user_count }}</span>
+      </div>
+      <p class="mt-4 text-sm text-gray-500">Create, view, and remove admin accounts.</p>
+      <div class="mt-6 text-sm font-medium text-gray-600 group-hover:text-gray-900 transition flex items-center gap-1">
+        Open <span class="group-hover:translate-x-0.5 transition-transform inline-block">→</span>
+      </div>
+    </a>
+
+    <!-- Permissions card -->
+    <a href="{{ url_for('admin.permissions') }}"
+       class="group bg-white border border-gray-200 rounded-xl p-7 hover:shadow-md hover:border-gray-300 transition-all">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Manage</p>
+          <h2 class="text-xl font-semibold text-gray-800 playfair group-hover:text-gray-900">Permissions</h2>
+        </div>
+        <!-- No meaningful count for permissions, show module count -->
+        <span class="text-3xl font-light text-gray-300 group-hover:text-gray-400 transition">{{ module_count }}</span>
+      </div>
+      <p class="mt-4 text-sm text-gray-500">Configure per-module access for each user.</p>
+      <div class="mt-6 text-sm font-medium text-gray-600 group-hover:text-gray-900 transition flex items-center gap-1">
+        Open <span class="group-hover:translate-x-0.5 transition-transform inline-block">→</span>
+      </div>
+    </a>
+
+  </div>
+</div>
+{% endblock %}

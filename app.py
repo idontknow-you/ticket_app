@@ -29,13 +29,30 @@ def create_app():
         from models.settings import Setting
         from models.mail import MailLog, MailTemplate
 
+        db.create_all()
+
+        from werkzeug.security import generate_password_hash
+
+        if not User.query.filter_by(username='superadmin').first():
+            admin_user = User(
+                name='Superadmin',
+                username='superadmin',
+                email='superadmin@superadmin.com',
+                password_hash=generate_password_hash('superadmin123'),
+                is_superadmin=True,
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+
         from routes.auth import auth_bp
         from routes.public import public_bp
         from routes.tickets import tickets_bp
+        from routes.admin import admin_bp
 
         app.register_blueprint(auth_bp)
         app.register_blueprint(public_bp)
         app.register_blueprint(tickets_bp)
+        app.register_blueprint(admin_bp)
 
     @login_manager.user_loader
     def load_user(user_id):

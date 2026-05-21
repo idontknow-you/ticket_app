@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Manage Permissions — Support System{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-6 py-10">
+
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900" style="font-family: 'Playfair Display', serif;">Manage Permissions</h1>
+    <p class="text-sm text-gray-400 mt-1">Set module-level access for each admin user.</p>
+  </div>
+
+  {# ── User + Module selector ── #}
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
+      <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-5">Select User & Module</h2>
+      <form method="GET" action="{{ url_for('admin.permissions') }}" class="flex flex-wrap gap-4 items-end">
+    <div class="flex-1 min-w-[180px]">
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">User</label>
+      <select name="user_id" onchange="this.form.submit()"
+              class="w-full rounded-lg border border-gray-200 pl-3 py-2.5 text-sm text-gray-900 bg-white bg-none
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+        <option value="">— Select a user —</option>
+        {% for user in users %}
+          <option value="{{ user.id }}" {% if selected_user and selected_user.id == user.id %}selected{% endif %}>
+            {{ user.name }} ({{ user.username }})
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="flex-1 min-w-[160px]">
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Module</label>
+      <select name="module" onchange="this.form.submit()"
+              class="w-full rounded-lg border border-gray-200 pl-3 py-2.5 text-sm text-gray-900 bg-white bg-none
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+        <option value="">— Select a module —</option>
+        {% for mod in modules %}
+          <option value="{{ mod }}" {% if selected_module == mod %}selected{% endif %}>{{ mod }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+  </div>
+
+  {# ── Permission matrix ── #}
+  {% if selected_user and selected_module %}
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400">
+        Permissions — {{ selected_user.name }} / {{ selected_module }}
+      </h2>
+    </div>
+
+    <form method="POST" action="{{ url_for('admin.save_permissions') }}">
+      <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+      <input type="hidden" name="module" value="{{ selected_module }}">
+
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-widest">
+            <th class="text-left py-3 font-medium w-1/2">Permission</th>
+            <th class="text-center py-3 font-medium">Access</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+
+          {% set perms = [
+            ('can_view',   'Can View'),
+            ('can_create', 'Can Create'),
+            ('can_edit',   'Can Edit'),
+            ('can_delete', 'Can Delete'),
+            ('can_assign', 'Can Assign'),
+          ] %}
+
+          {% for perm_key, perm_label in perms %}
+          {% set applicable = module_map[selected_module][perm_key] %}
+          <tr class="{{ 'opacity-40' if not applicable else '' }}">
+            <td class="py-3.5 text-gray-700 font-medium">{{ perm_label }}</td>
+            <td class="py-3.5 text-center">
+              {% if applicable %}
+                <input type="checkbox" name="{{ perm_key }}" value="1"
+                       {% if perm_row and perm_row|attr(perm_key) %}checked{% endif %}
+                       class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+              {% else %}
+                <span class="text-gray-300 text-base">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+
+        </tbody>
+      </table>
+
+      <div class="flex justify-end mt-6">
+        <button type="submit"
+                class="bg-indigo-900 hover:bg-indigo-700 text-white text-sm font-medium px-6 py-2.5 rounded-lg transition shadow-sm">
+          Save Permissions
+        </button>
+      </div>
+    </form>
+  </div>
+  {% elif selected_user or selected_module %}
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center text-gray-400">
+    <p class="text-sm">Select both a user and a module to manage permissions.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
