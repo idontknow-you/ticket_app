@@ -17,6 +17,8 @@ MODULES = [
     'Module Z',
 ]
 
+TYPES = ['Issue', 'Bug', 'Other']
+
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
@@ -55,6 +57,9 @@ def submit():
         subject         = request.form.get('subject', '').strip()
         description     = request.form.get('description', '').strip()
         files           = request.files.getlist('attachments')
+        type            = request.form.get('type', '').strip()
+        module          = request.form.get('module', '').strip()
+
 
         errors = []
         if not submitter_name:
@@ -65,6 +70,10 @@ def submit():
             errors.append('Subject is required.')
         if not description:
             errors.append('Please describe your issue.')
+        if not type:
+            errors.append('Type is required.')
+        if not module:
+            errors.append('Module is required.')
 
         valid_files = []
         for f in files:
@@ -83,7 +92,7 @@ def submit():
         if errors:
             for error in errors:
                 flash(error, 'error')
-            return render_template('public/submit_form.html', modules=MODULES, form=request.form)
+            return render_template('public/submit_form.html', modules=MODULES, types=TYPES, form=request.form)
 
         ticket_number = generate_ticket_number()
         ticket = Ticket(
@@ -94,6 +103,8 @@ def submit():
             description=description,
             status='open',
             priority='low',
+            type=type,
+            module=module
         )
         db.session.add(ticket)
         db.session.flush()
@@ -116,7 +127,7 @@ def submit():
 
         return redirect(url_for('public.confirmation', ticket_number=ticket_number))
 
-    return render_template('public/submit_form.html', modules=MODULES, form={})
+    return render_template('public/submit_form.html', modules=MODULES, types=TYPES, form={})
 
 
 @public_bp.route('/confirmation/<ticket_number>')

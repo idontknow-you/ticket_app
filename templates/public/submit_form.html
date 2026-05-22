@@ -129,7 +129,32 @@
                     </div>
                   </div>
                 </div>
-              </div>
+                <div>
+                  <label for ="type" class="block text-sm font-medium text-gray-700 mb-1">
+                    Type <span class="text-red-500">*</span>
+                  </label>
+                  <div class="relative">
+                    <select
+                      id="type"
+                      name="type"
+                      class="w-full appearance-none bg-none rounded-lg border border-gray-300 pl-3 py-2.5 pr-8 text-sm text-gray-900
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+                    >
+                      <option value="">— Select a type —</option>
+                      {% for t in types %}
+                        <option value="{{ t }}" {% if form.get('type') == t %}selected{% endif %}>{{ t }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>  
+            </div>
+            </div>
 
               <div>
                 <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">
