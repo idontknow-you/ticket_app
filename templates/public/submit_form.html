@@ -3,15 +3,13 @@
 {% block title %}Submit a Support Ticket{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-2xl mx-auto">
+<div class="min-h-screen py-10 px-4 sm:px-6 lg:px-8" style="background:#e7f1f3;">
+  <div class="max-w-7xl mx-auto">
 
     <!-- Header -->
-    <div class="mb-10 text-center">
+    <div class="mb-8">
       <h1 class="text-3xl font-bold font-serif text-gray-900 tracking-tight">Submit a Support Request</h1>
-      <p class="mt-2 text-gray-500 text-sm">
-        Fill in the details below and we'll get back to you as soon as possible.
-      </p>
+      <p class="mt-1 text-gray-500 text-sm">Fill in the details below and we'll get back to you as soon as possible.</p>
     </div>
 
     <!-- Flash messages -->
@@ -19,10 +17,9 @@
       {% if messages %}
         <div class="mb-6 space-y-2">
           {% for category, message in messages %}
-            <div class="flex items-start gap-3 px-4 py-3 rounded-lg
+            <div class="flex items-start gap-3 px-4 py-3 rounded-lg text-sm
               {% if category == 'error' %}bg-red-50 border border-red-200 text-red-700
-              {% else %}bg-green-50 border border-green-200 text-green-700{% endif %}
-              text-sm">
+              {% else %}bg-green-50 border border-green-200 text-green-700{% endif %}">
               <span class="mt-0.5 shrink-0">
                 {% if category == 'error' %}
                   <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -41,213 +38,182 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Form card -->
-    <div class="bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden">
-      <form method="POST" action="{{ url_for('public.submit') }}" enctype="multipart/form-data" novalidate>
+    <!-- Two-column layout -->
+    <div class="flex gap-6 items-start">
 
-        <div class="px-8 py-8 space-y-6">
+      <!-- LEFT: Form (60%) -->
+      <div class="flex-[3] min-w-0">
+        <div class="bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden">
+          <form method="POST" action="{{ url_for('public.submit') }}" enctype="multipart/form-data" novalidate>
 
-          <!-- Contact info -->
-          <div>
-            <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Your Details</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="px-8 py-8 space-y-6">
+
+              <!-- Your Details -->
               <div>
-                <label for="submitter_name" class="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name <span class="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="submitter_name"
-                  name="submitter_name"
-                  value="{{ form.get('submitter_name', '') }}"
-                  required
-                  placeholder="Jane Doe"
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-                >
-              </div>
-              <div>
-                <label for="submitter_email" class="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address <span class="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  id="submitter_email"
-                  name="submitter_email"
-                  value="{{ form.get('submitter_email', '') }}"
-                  required
-                  placeholder="Email"
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-                >
-              </div>
-            </div>
-          </div>
-
-          <hr class="border-gray-100">
-
-          <!-- Ticket details -->
-          <div>
-            <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Issue Details</h2>
-            <div class="space-y-4">
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label for="department" class="block text-sm font-medium text-gray-700 mb-1">
-                    Department
-                  </label>
-                  <input
-                    type="text"
-                    id="department"
-                    name="department"
-                    value="{{ form.get('department', '') }}"
-                    placeholder="e.g. Finance, HR, IT"
-                    class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-                  >
-                </div>
-                <div>
-                  <label for="module" class="block text-sm font-medium text-gray-700 mb-1">
-                    Module <span class="text-red-500">*</span>
-                  </label>
-                  <div class="relative">
-                    <select
-                      id="module"
-                      name="module"
-                      class="w-full appearance-none bg-none rounded-lg border border-gray-300 pl-3 py-2.5 pr-8 text-sm text-gray-900
-                             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
-                    >
-                      <option value="">— Select a module —</option>
-                      {% for m in modules %}
-                        <option value="{{ m }}" {% if form.get('module') == m %}selected{% endif %}>{{ m }}</option>
-                      {% endfor %}
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                      </svg>
-                    </div>
+                <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Your Details</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label for="submitter_name" class="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="submitter_name" name="submitter_name"
+                      value="{{ form.get('submitter_name', '') }}" required placeholder="Jane Doe"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                  </div>
+                  <div>
+                    <label for="submitter_email" class="block text-sm font-medium text-gray-700 mb-1">
+                      Email Address <span class="text-red-500">*</span>
+                    </label>
+                    <input type="email" id="submitter_email" name="submitter_email"
+                      value="{{ form.get('submitter_email', '') }}" required placeholder="you@example.com"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
                   </div>
                 </div>
-                <div>
-                  <label for ="type" class="block text-sm font-medium text-gray-700 mb-1">
-                    Type <span class="text-red-500">*</span>
-                  </label>
-                  <div class="relative">
-                    <select
-                      id="type"
-                      name="type"
-                      class="w-full appearance-none bg-none rounded-lg border border-gray-300 pl-3 py-2.5 pr-8 text-sm text-gray-900
-                             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
-                    >
-                      <option value="">— Select a type —</option>
-                      {% for t in types %}
-                        <option value="{{ t }}" {% if form.get('type') == t %}selected{% endif %}>{{ t }}</option>
-                      {% endfor %}
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                      </svg>
+              </div>
+
+              <hr class="border-gray-100">
+
+              <!-- Issue Details -->
+              <div>
+                <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Issue Details</h2>
+                <div class="space-y-4">
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Department -->
+                    <div>
+                      <label for="department" class="block text-sm font-medium text-gray-700 mb-1">
+                        Department
+                      </label>
+                      <input type="text" id="department" name="department"
+                        value="{{ form.get('department', '') }}"
+                        placeholder="e.g. Finance, HR, IT"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
+                               focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                    </div>
+
+                    <!-- Module -->
+                    <div>
+                      <label for="module" class="block text-sm font-medium text-gray-700 mb-1">
+                        Module <span class="text-red-500">*</span>
+                      </label>
+                      <div class="relative">
+                        <select id="module" name="module"
+                          class="w-full appearance-none rounded-lg border border-gray-300 pl-3 py-2.5 pr-8 text-sm text-gray-900
+                                 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white">
+                          <option value="">— Select a module —</option>
+                          {% for m in modules %}
+                            <option value="{{ m }}" {% if form.get('module') == m %}selected{% endif %}>{{ m }}</option>
+                          {% endfor %}
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Type -->
+                    <div>
+                      <label for="type" class="block text-sm font-medium text-gray-700 mb-1">
+                        Type <span class="text-red-500">*</span>
+                      </label>
+                      <div class="relative">
+                        <select id="type" name="type"
+                          class="w-full appearance-none rounded-lg border border-gray-300 pl-3 py-2.5 pr-8 text-sm text-gray-900
+                                 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white">
+                          <option value="">— Select a type —</option>
+                          {% for t in types %}
+                            <option value="{{ t }}" {% if form.get('type') == t %}selected{% endif %}>{{ t }}</option>
+                          {% endfor %}
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  <!-- Subject -->
+                  <div>
+                    <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">
+                      Subject <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="subject" name="subject"
+                      value="{{ form.get('subject', '') }}" required placeholder="Brief summary of your issue"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                  </div>
+
+                  <!-- Description -->
+                  <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+                      Description <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="description" name="description" rows="6" required
+                      placeholder="Describe the issue in detail. Include steps to reproduce if applicable."
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-y"
+                    >{{ form.get('description', '') }}</textarea>
+                  </div>
+
                 </div>
-              </div>  
-            </div>
-            </div>
-
-              <div>
-                <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">
-                  Subject <span class="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="subject"
-                  name="subject"
-                  value="{{ form.get('subject', '') }}"
-                  required
-                  placeholder="Brief summary of your issue"
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-                >
               </div>
 
+              <hr class="border-gray-100">
+
+              <!-- Attachments -->
               <div>
-                <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
-                  Description <span class="text-red-500">*</span>
+                <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
+                  Attachments <span class="normal-case font-normal text-gray-400">(optional)</span>
+                </h2>
+                <label for="attachments" id="drop-zone"
+                  class="flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300
+                         rounded-xl px-6 py-8 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition group">
+                  <svg class="w-8 h-8 text-gray-400 group-hover:text-indigo-400 mb-3 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                  </svg>
+                  <p class="text-sm text-gray-600 group-hover:text-indigo-600 transition font-medium">Click to upload or drag and drop</p>
+                  <p class="text-xs text-gray-400 mt-1">Images (PNG, JPG, WEBP) or PDF — max 10MB each</p>
+                  <input id="attachments" name="attachments" type="file" multiple
+                    accept=".png,.jpg,.jpeg,.webp,.pdf" class="sr-only">
                 </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  rows="6"
-                  required
-                  placeholder="Please describe the issue in as much detail as possible. Include steps to reproduce if applicable."
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-y"
-                >{{ form.get('description', '') }}</textarea>
+                <ul id="file-list" class="mt-3 space-y-1.5 text-sm text-gray-600 hidden"></ul>
               </div>
 
             </div>
-          </div>
 
-          <hr class="border-gray-100">
+            <!-- Footer -->
+            <div class="px-8 py-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-4">
+              <p class="text-xs text-gray-400">Fields marked <span class="text-red-500 font-medium">*</span> are required.</p>
+              <button type="submit"
+                class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800
+                       text-white font-medium text-sm px-6 py-2.5 rounded-lg transition shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+                Submit Ticket
+              </button>
+            </div>
 
-          <!-- Attachments -->
-          <div>
-            <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Attachments <span class="normal-case font-normal text-gray-400">(optional)</span></h2>
-            <label
-              for="attachments"
-              class="flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300
-                     rounded-xl px-6 py-8 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition group"
-              id="drop-zone"
-            >
-              <svg class="w-8 h-8 text-gray-400 group-hover:text-indigo-400 mb-3 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-              </svg>
-              <p class="text-sm text-gray-600 group-hover:text-indigo-600 transition font-medium">
-                Click to upload or drag and drop
-              </p>
-              <p class="text-xs text-gray-400 mt-1">Images (PNG, JPG, WEBP) or PDF — max 10MB each</p>
-              <input
-                id="attachments"
-                name="attachments"
-                type="file"
-                multiple
-                accept=".png,.jpg,.jpeg,.webp,.pdf"
-                class="sr-only"
-              >
-            </label>
-
-            <!-- Selected file list -->
-            <ul id="file-list" class="mt-3 space-y-1.5 text-sm text-gray-600 hidden"></ul>
-          </div>
-
+          </form>
         </div>
+      </div>
 
-        <!-- Footer -->
-        <div class="px-8 py-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-4">
-          <p class="text-xs text-gray-400">Fields marked <span class="text-red-500 font-medium">*</span> are required.</p>
-          <button
-            type="submit"
-            class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800
-                   text-white font-medium text-sm px-6 py-2.5 rounded-lg transition shadow-sm"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-            </svg>
-            Submit Ticket
-          </button>
-        </div>
+      {% include 'public/_wiki_panel.html' %}
 
-      </form>
     </div>
-
   </div>
 </div>
 
 <script>
-  const input = document.getElementById('attachments');
+  // ── File upload ──────────────────────────────────────────────────────
+  const input    = document.getElementById('attachments');
   const fileList = document.getElementById('file-list');
   const dropZone = document.getElementById('drop-zone');
 
@@ -258,31 +224,85 @@
     Array.from(files).forEach(f => {
       const li = document.createElement('li');
       li.className = 'flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg';
-      const kb = (f.size / 1024).toFixed(0);
       li.innerHTML = `
         <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
         </svg>
         <span class="truncate flex-1">${f.name}</span>
-        <span class="text-gray-400 shrink-0">${kb} KB</span>
-      `;
+        <span class="text-gray-400 shrink-0">${(f.size/1024).toFixed(0)} KB</span>`;
       fileList.appendChild(li);
     });
   }
 
   input.addEventListener('change', () => renderFiles(input.files));
-
-  // Drag-and-drop
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-400', 'bg-indigo-50'); });
-  dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-indigo-400', 'bg-indigo-50'); });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-400','bg-indigo-50'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-400','bg-indigo-50'));
   dropZone.addEventListener('drop', e => {
     e.preventDefault();
-    dropZone.classList.remove('border-indigo-400', 'bg-indigo-50');
+    dropZone.classList.remove('border-indigo-400','bg-indigo-50');
     const dt = new DataTransfer();
     Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
     input.files = dt.files;
     renderFiles(input.files);
+  });
+
+  // ── Wiki panel ───────────────────────────────────────────────────────
+  const listView     = document.getElementById('wiki-list-view');
+  const readerView   = document.getElementById('wiki-reader-view');
+  const backBtn      = document.getElementById('wiki-back');
+  const readerTitle  = document.getElementById('wiki-reader-title');
+  const readerBody   = document.getElementById('wiki-reader-body');
+  const childrenWrap = document.getElementById('wiki-children');
+  const childrenList = document.getElementById('wiki-children-list');
+
+  function showArticle(title, body, childrenData) {
+    readerTitle.textContent = title;
+    if (/<[a-z][\s\S]*>/i.test(body)) {
+      readerBody.innerHTML = body;
+    } else {
+      readerBody.innerHTML = body.split('\n').filter(l => l.trim()).map(l => `<p>${l}</p>`).join('');
+    }
+
+    childrenList.innerHTML = '';
+    const published = (childrenData || []).filter(c => c.is_published);
+    if (published.length) {
+      childrenWrap.classList.remove('hidden');
+      published.forEach(child => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 text-sm text-indigo-600 hover:text-indigo-700 transition flex items-center gap-2';
+        btn.innerHTML = `<svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>${child.title}`;
+        btn.addEventListener('click', () => showArticle(child.title, child.body, []));
+        childrenList.appendChild(btn);
+      });
+    } else {
+      childrenWrap.classList.add('hidden');
+    }
+
+    listView.classList.add('hidden');
+    readerView.classList.remove('hidden');
+  }
+
+  document.querySelectorAll('.wiki-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const children = JSON.parse(btn.dataset.children || '[]');
+      const title = btn.querySelector('p').textContent.trim();
+      showArticle(title, btn.dataset.body, children);
+    });
+  });
+
+  backBtn.addEventListener('click', () => {
+    readerView.classList.add('hidden');
+    listView.classList.remove('hidden');
+  });
+
+  document.getElementById('wiki-search').addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll('.wiki-item').forEach(btn => {
+      const match = btn.dataset.title.includes(q) || btn.dataset.body.toLowerCase().includes(q);
+      btn.style.display = match ? '' : 'none';
+    });
   });
 </script>
 {% endblock %}

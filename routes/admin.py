@@ -3,7 +3,8 @@ from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 from extensions import db
 from models.user import User
-from models.permission import UserPermission, MODULES, MODULE_PERMISSION_MAP
+from models.permission import MODULE_AUTO_GRANTED, UserPermission, MODULES, MODULE_PERMISSION_MAP
+from decorators import require_permission
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -18,11 +19,25 @@ def superadmin_required(f):
     return decorated
 
 
+@admin_bp.context_processor
+def admin_permissions():
+    if not current_user.is_authenticated:
+        return dict(users_perm=None)
+    if current_user.is_superadmin:
+        class _All:
+            can_view = can_create = can_edit = can_delete = True
+        return dict(users_perm=_All())
+    perm = UserPermission.query.filter_by(
+        user_id=current_user.id, module='Users'
+    ).first()
+    return dict(users_perm=perm)
+
+
 # ── Users ──────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/users')
 @login_required
-@superadmin_required
+@require_permission('Users', 'can_view')
 def users():
     all_users = User.query.filter_by(is_superadmin=False, is_active=True).order_by(User.created_at.desc()).all()
     return render_template('admin/users.html', users=all_users)
@@ -30,11 +45,14 @@ def users():
 
 @admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
 @login_required
-@superadmin_required
+@require_permission('Users', 'can_delete')
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
     if user.is_superadmin:
         flash('Cannot delete superadmin.', 'error')
+        return redirect(url_for('admin.users'))
+    if user.id == current_user.id:
+        flash('You cannot delete your own account.', 'error')
         return redirect(url_for('admin.users'))
     user.is_active = False
     db.session.commit()
@@ -44,7 +62,7 @@ def delete_user(user_id):
 
 @admin_bp.route('/users/create', methods=['POST'])
 @login_required
-@superadmin_required
+@require_permission('Users', 'can_create')
 def create_user():
     name     = request.form.get('name', '').strip()
     username = request.form.get('username', '').strip()
@@ -55,11 +73,11 @@ def create_user():
         flash('All fields are required.', 'error')
         return redirect(url_for('admin.users'))
 
-    if User.query.filter_by(username=username).first():
+    if User.query.filter_by(username=username, is_active=True).first():
         flash('Username already taken.', 'error')
         return redirect(url_for('admin.users'))
 
-    if User.query.filter_by(email=email).first():
+    if User.query.filter_by(email=email, is_active=True).first():
         flash('Email already registered.', 'error')
         return redirect(url_for('admin.users'))
 
@@ -83,7 +101,7 @@ def create_user():
 @login_required
 @superadmin_required
 def permissions():
-    users = User.query.filter_by(is_superadmin=False).order_by(User.name).all()
+    users = User.query.filter_by(is_superadmin=False, is_active=True).order_by(User.name).all()
 
     selected_user_id = request.args.get('user_id', type=int)
     selected_module  = request.args.get('module', '')
@@ -132,7 +150,11 @@ def save_permissions():
         perm = UserPermission(user_id=user_id, module=module, granted_by=current_user.id)
         db.session.add(perm)
 
-    allowed = MODULE_PERMISSION_MAP[module]
+    allowed     = MODULE_PERMISSION_MAP[module]
+    auto        = MODULE_AUTO_GRANTED[module]
+
+    perm.can_view   = True if 'can_view'   in auto else (bool(request.form.get('can_view'))   if allowed['can_view']   else False)
+    perm.can_create = True if 'can_create' in auto else (bool(request.form.get('can_create')) if allowed['can_create'] else False)
     perm.can_edit   = bool(request.form.get('can_edit'))   if allowed['can_edit']   else False
     perm.can_delete = bool(request.form.get('can_delete')) if allowed['can_delete'] else False
     perm.can_assign = bool(request.form.get('can_assign')) if allowed['can_assign'] else False
@@ -147,6 +169,6 @@ def save_permissions():
 @admin_bp.route('/panel')
 @superadmin_required
 def panel():
-    user_count = User.query.filter_by(is_superadmin=False).count()
+    user_count = User.query.filter_by(is_superadmin=False, is_active=True).count()
     module_count = len(MODULES)
     return render_template('admin/panel.html', user_count=user_count, module_count=module_count)

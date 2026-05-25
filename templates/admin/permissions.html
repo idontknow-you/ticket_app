@@ -72,11 +72,17 @@
         </thead>
         <tbody class="divide-y divide-gray-50">
 
-          {% set perms = [
-            ('can_edit',   'Can Edit'),
-            ('can_delete', 'Can Delete'),
-            ('can_assign', 'Can Assign'),
-          ] %}
+          {% if selected_module == 'Tickets' %}
+            {% set perms = [('can_edit','Can Edit'),('can_delete','Can Delete'),('can_assign','Can Assign')] %}
+          {% elif selected_module in ('Wiki', 'Users') %}
+            {% set perms = [('can_create','Can Create'),('can_edit','Can Edit'),('can_delete','Can Delete')] %}
+          {% elif selected_module == 'Settings' %}
+            {% set perms = [('can_view','Can View'),('can_edit','Can Edit')] %}
+          {% elif selected_module == 'Reports' %}
+            {% set perms = [('can_view','Can View')] %}
+          {% else %}
+            {% set perms = [] %}
+          {% endif %}
 
           {% for perm_key, perm_label in perms %}
           {% set applicable = module_map[selected_module][perm_key] %}

@@ -10,6 +10,7 @@
   </div>
 
   {# ── Create user form ── #}
+  {% if users_perm and users_perm.can_create %}
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-8">
     <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-5">Create New User</h2>
     <form method="POST" action="{{ url_for('admin.create_user') }}">
@@ -47,6 +48,7 @@
       </div>
     </form>
   </div>
+  {% endif %}
 
   {# ── User list ── #}
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -62,7 +64,7 @@
           <th class="text-left px-6 py-3 font-medium">Username</th>
           <th class="text-left px-6 py-3 font-medium">Email</th>
           <th class="text-left px-6 py-3 font-medium">Created</th>
-          <th class="px-6 py-3"></th>
+          {% if users_perm and users_perm.can_delete %}<th class="px-6 py-3"></th>{% endif %}
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50">
@@ -79,7 +81,9 @@
           <td class="px-6 py-3 text-gray-500 font-mono text-xs">{{ user.username }}</td>
           <td class="px-6 py-3 text-gray-500">{{ user.email }}</td>
           <td class="px-6 py-3 text-gray-400 text-xs">{{ user.created_at.strftime('%d %b %Y') }}</td>
+          {% if users_perm and users_perm.can_delete %}
           <td class="px-6 py-3 text-right">
+            {% if user.id != current_user.id %}
             <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}"
                   onsubmit="return confirm('Delete {{ user.name }}? This cannot be undone.')">
               <button type="submit"
@@ -87,7 +91,9 @@
                 Delete
               </button>
             </form>
+            {% endif %}
           </td>
+          {% endif %}
         </tr>
         {% endfor %}
       </tbody>

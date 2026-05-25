@@ -30,17 +30,13 @@
   </script>
 
   <style>
-    body { background: #e7f1f3; }
-    select {
-      appearance: none;
-      -webkit-appearance: none;
-      background-image: url("/static/down-arrow.svg");
-      background-repeat: no-repeat;
-      background-position: right 10px center;
-      background-size: 12px 12px;
-      padding-right: 2rem !important;
-    }
-    select:hover { cursor: pointer; }
+  body { background: #e7f1f3; }
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #ffffff !important;
+    cursor: pointer;
+  }
   </style>
 
   {% block head %}{% endblock %}
@@ -79,6 +75,24 @@
            class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
           Dashboard
         </a>
+
+        {% if not current_user.is_superadmin %}
+          {% set wiki_perm = current_user.permissions | selectattr('module', 'equalto', 'Wiki') | first %}
+          {% if wiki_perm and wiki_perm.can_view %}
+            <a href="{{ url_for('wiki.index') }}"
+               class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
+              Wiki
+            </a>
+          {% endif %}
+
+          {% set users_perm = current_user.permissions | selectattr('module', 'equalto', 'Users') | first %}
+          {% if users_perm and users_perm.can_view %}
+            <a href="{{ url_for('admin.users') }}"
+               class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
+              Users
+            </a>
+          {% endif %}
+        {% endif %}
 
         {% if current_user.is_superadmin %}
           <a href="{{ url_for('admin.panel') }}"

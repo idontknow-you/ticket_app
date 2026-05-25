@@ -1,12 +1,24 @@
 from extensions import db
 from datetime import datetime
 
-def generate_ticket_number():
-    last_ticket = Ticket.query.order_by(Ticket.id.desc()).first()
-    if last_ticket and last_ticket.ticket_number:
-        last_number = int(last_ticket.ticket_number.split('-')[1])
-        return f"TKT-{str(last_number + 1).zfill(4)}"
-    return "TKT-0001"
+PREFIX_MAP = {
+    'Issue': 'I',
+    'Bug':   'B',
+    'Other': 'O',
+}
+
+def generate_ticket_number(ticket_type: str) -> str:
+    prefix = PREFIX_MAP.get(ticket_type, 'X')
+    last = (Ticket.query
+            .filter_by(type=ticket_type)
+            .order_by(Ticket.id.desc())
+            .first())
+    if last and last.ticket_number:
+        last_number = int(last.ticket_number.split('-')[1])
+        next_number = last_number + 1
+    else:
+        next_number = 1
+    return f"{prefix}-{str(next_number).zfill(4)}"
 
 class Ticket(db.Model):
     __tablename__ = 'tickets'

@@ -77,5 +77,8 @@ def auth_check():
     from flask import jsonify
     return jsonify({'authenticated': current_user.is_authenticated})
 
+from routes.wiki import wiki_bp
+app.register_blueprint(wiki_bp)
+
 if __name__ == '__main__':
     app.run(debug=True)

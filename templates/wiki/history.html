@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}History — {{ page.title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen py-10 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-3xl mx-auto">
+
+    <div class="mb-8">
+      <a href="{{ url_for('wiki.index') }}"
+         class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition mb-4">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+        Back to Wiki
+      </a>
+      <h1 class="text-3xl font-bold font-serif text-gray-900 tracking-tight">Edit History</h1>
+      <p class="mt-1 text-sm text-gray-500">{{ page.title }}</p>
+    </div>
+
+    {% if snapshots %}
+      <div class="space-y-4">
+        {% for snap in snapshots %}
+          <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 flex items-center justify-between border-b border-gray-100">
+              <div class="flex items-center gap-3">
+                <span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold flex items-center justify-center">
+                  {{ loop.index }}
+                </span>
+                <div>
+                  <p class="text-sm font-medium text-gray-800">
+                    {{ editors[snap.edited_by].name if snap.edited_by in editors else 'Unknown' }}
+                  </p>
+                  <p class="text-xs text-gray-400">{{ snap.edited_at.strftime('%d %b %Y, %H:%M') }}</p>
+                </div>
+              </div>
+              <span class="text-xs text-gray-400 font-mono">snapshot #{{ snapshots | length - loop.index0 }}</span>
+            </div>
+            <div class="px-6 py-4">
+              <pre class="text-xs text-gray-600 whitespace-pre-wrap font-mono leading-relaxed max-h-48 overflow-y-auto">{{ snap.body_snapshot }}</pre>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+    {% else %}
+      <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-16 text-center">
+        <p class="text-gray-400 text-sm">No edit history yet. History is recorded on each save.</p>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

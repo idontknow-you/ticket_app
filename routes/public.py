@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from extensions import db
 from models.ticket import Ticket, TicketAttachment
 from models.ticket import generate_ticket_number
+from models.wiki import WikiPage
 from services.email_service import send_ticket_confirmation
 
 public_bp = Blueprint('public', __name__)
@@ -49,6 +50,10 @@ def save_attachment(file, ticket_id):
     )
 
 
+def get_wiki_pages():
+    return WikiPage.query.filter_by(is_published=True, parent_id=None).order_by(WikiPage.title).all()
+
+
 @public_bp.route('/', methods=['GET', 'POST'])
 def submit():
     if request.method == 'POST':
@@ -59,7 +64,6 @@ def submit():
         files           = request.files.getlist('attachments')
         type            = request.form.get('type', '').strip()
         module          = request.form.get('module', '').strip()
-
 
         errors = []
         if not submitter_name:
@@ -92,9 +96,11 @@ def submit():
         if errors:
             for error in errors:
                 flash(error, 'error')
-            return render_template('public/submit_form.html', modules=MODULES, types=TYPES, form=request.form)
+            return render_template('public/submit_form.html',
+                                   modules=MODULES, types=TYPES,
+                                   form=request.form, wiki_pages=get_wiki_pages())
 
-        ticket_number = generate_ticket_number()
+        ticket_number = generate_ticket_number(type)
         ticket = Ticket(
             ticket_number=ticket_number,
             submitter_name=submitter_name,
@@ -127,10 +133,12 @@ def submit():
 
         return redirect(url_for('public.confirmation', ticket_number=ticket_number))
 
-    return render_template('public/submit_form.html', modules=MODULES, types=TYPES, form={})
+    return render_template('public/submit_form.html',
+                           modules=MODULES, types=TYPES,
+                           form={}, wiki_pages=get_wiki_pages())
 
 
 @public_bp.route('/confirmation/<ticket_number>')
 def confirmation(ticket_number):
     ticket = Ticket.query.filter_by(ticket_number=ticket_number).first_or_404()
-    return render_template('public/submit_success.html', ticket=ticket)
+    return render_template('public/submit_success.html', ticket=ticket, wiki_pages=get_wiki_pages())

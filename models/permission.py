@@ -13,6 +13,14 @@ MODULE_PERMISSION_MAP = {
     'Reports':  {'can_view': True, 'can_create': False, 'can_edit': False, 'can_delete': False, 'can_assign': False},
 }
 
+# Auto-granted permissions that superadmin cannot toggle (always True)
+MODULE_AUTO_GRANTED = {
+    'Tickets':  {'can_view', 'can_create'},
+    'Wiki':     {'can_view'},
+    'Users':    {'can_view'},
+    'Settings': set(),
+    'Reports':  set(),
+}
 
 class UserPermission(db.Model):
     __tablename__ = 'user_permissions'

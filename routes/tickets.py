@@ -54,7 +54,7 @@ def dashboard():
 @login_required
 def view_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
-    users = User.query.order_by(User.name).all()
+    users = User.query.filter_by(is_active=True).order_by(User.name).all()
     return render_template('tickets/view_ticket.html', ticket=ticket, users=users)
 
 @tickets_bp.after_request

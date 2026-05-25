@@ -4,7 +4,6 @@
 {% block content %}
 <div class="max-w-4xl mx-auto px-6 py-10">
 
-  <!-- Header row: Back + title -->
   <div class="flex items-center gap-4 mb-10">
     <a href="{{ url_for('tickets.dashboard') }}"
        class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
@@ -13,7 +12,6 @@
     <h1 class="text-2xl font-semibold text-gray-800 playfair">Admin Panel</h1>
   </div>
 
-  <!-- Two cards -->
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
     <!-- Users card -->
@@ -42,6 +40,21 @@
         </div>
       </div>
       <p class="mt-4 text-sm text-gray-500">Configure per-module access for each user.</p>
+      <div class="mt-6 text-sm font-medium text-gray-600 group-hover:text-gray-900 transition flex items-center gap-1">
+        Open <span class="group-hover:translate-x-0.5 transition-transform inline-block">→</span>
+      </div>
+    </a>
+
+    <!-- Wiki card -->
+    <a href="{{ url_for('wiki.index') }}"
+       class="group bg-white border border-gray-200 rounded-xl p-7 hover:shadow-md hover:border-gray-300 transition-all">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Manage</p>
+          <h2 class="text-xl font-semibold text-gray-800 playfair group-hover:text-gray-900">Wiki</h2>
+        </div>
+      </div>
+      <p class="mt-4 text-sm text-gray-500">Create and publish help articles shown in the public panel.</p>
       <div class="mt-6 text-sm font-medium text-gray-600 group-hover:text-gray-900 transition flex items-center gap-1">
         Open <span class="group-hover:translate-x-0.5 transition-transform inline-block">→</span>
       </div>
