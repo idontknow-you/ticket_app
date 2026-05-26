@@ -48,7 +48,7 @@
 
             <div class="px-8 py-8 space-y-6">
 
-              <!-- Your Details -->
+              <!-- Your Details — always shown -->
               <div>
                 <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Your Details</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -73,33 +73,45 @@
                 </div>
               </div>
 
+              {# Only render the Issue Details section if at least one configurable field is visible #}
+              {% if form_config.subject.visible or form_config.description.visible
+                 or form_config.department.visible or form_config.module.visible
+                 or form_config.type.visible %}
+
               <hr class="border-gray-100">
 
-              <!-- Issue Details -->
               <div>
                 <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Issue Details</h2>
                 <div class="space-y-4">
 
+                  {# Row: Department + Module + Type — only render grid if any of the three are visible #}
+                  {% if form_config.department.visible or form_config.module.visible or form_config.type.visible %}
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!-- Department -->
+
+                    {% if form_config.department.visible %}
                     <div>
                       <label for="department" class="block text-sm font-medium text-gray-700 mb-1">
                         Department
+                        {% if form_config.department.required %}<span class="text-red-500">*</span>{% endif %}
                       </label>
                       <input type="text" id="department" name="department"
                         value="{{ form.get('department', '') }}"
                         placeholder="e.g. Finance, HR, IT"
+                        {% if form_config.department.required %}required{% endif %}
                         class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
                                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
                     </div>
+                    {% endif %}
 
-                    <!-- Module -->
+                    {% if form_config.module.visible %}
                     <div>
                       <label for="module" class="block text-sm font-medium text-gray-700 mb-1">
-                        Module <span class="text-red-500">*</span>
+                        Module
+                        {% if form_config.module.required %}<span class="text-red-500">*</span>{% endif %}
                       </label>
                       <div class="relative">
                         <select id="module" name="module"
+                          {% if form_config.module.required %}required{% endif %}
                           class="w-full appearance-none rounded-lg border border-gray-300 pl-3 py-2.5 pr-8 text-sm text-gray-900
                                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white">
                           <option value="">— Select a module —</option>
@@ -114,14 +126,17 @@
                         </div>
                       </div>
                     </div>
+                    {% endif %}
 
-                    <!-- Type -->
+                    {% if form_config.type.visible %}
                     <div>
                       <label for="type" class="block text-sm font-medium text-gray-700 mb-1">
-                        Type <span class="text-red-500">*</span>
+                        Type
+                        {% if form_config.type.required %}<span class="text-red-500">*</span>{% endif %}
                       </label>
                       <div class="relative">
                         <select id="type" name="type"
+                          {% if form_config.type.required %}required{% endif %}
                           class="w-full appearance-none rounded-lg border border-gray-300 pl-3 py-2.5 pr-8 text-sm text-gray-900
                                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white">
                           <option value="">— Select a type —</option>
@@ -136,40 +151,57 @@
                         </div>
                       </div>
                     </div>
-                  </div>
+                    {% endif %}
 
-                  <!-- Subject -->
+                  </div>
+                  {% endif %}
+
+                  {% if form_config.subject.visible %}
                   <div>
                     <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">
-                      Subject <span class="text-red-500">*</span>
+                      Subject
+                      {% if form_config.subject.required %}<span class="text-red-500">*</span>{% endif %}
                     </label>
                     <input type="text" id="subject" name="subject"
-                      value="{{ form.get('subject', '') }}" required placeholder="Brief summary of your issue"
+                      value="{{ form.get('subject', '') }}"
+                      {% if form_config.subject.required %}required{% endif %}
+                      placeholder="Brief summary of your issue"
                       class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
                              focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
                   </div>
+                  {% endif %}
 
-                  <!-- Description -->
+                  {% if form_config.description.visible %}
                   <div>
                     <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
-                      Description <span class="text-red-500">*</span>
+                      Description
+                      {% if form_config.description.required %}<span class="text-red-500">*</span>{% endif %}
                     </label>
-                    <textarea id="description" name="description" rows="6" required
+                    <textarea id="description" name="description" rows="6"
+                      {% if form_config.description.required %}required{% endif %}
                       placeholder="Describe the issue in detail. Include steps to reproduce if applicable."
                       class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
                              focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-y"
                     >{{ form.get('description', '') }}</textarea>
                   </div>
+                  {% endif %}
 
                 </div>
               </div>
+              {% endif %}
 
+              {% if form_config.attachments.visible %}
               <hr class="border-gray-100">
 
               <!-- Attachments -->
               <div>
                 <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
-                  Attachments <span class="normal-case font-normal text-gray-400">(optional)</span>
+                  Attachments
+                  {% if form_config.attachments.required %}
+                    <span class="normal-case font-normal text-red-500">*</span>
+                  {% else %}
+                    <span class="normal-case font-normal text-gray-400">(optional)</span>
+                  {% endif %}
                 </h2>
                 <label for="attachments" id="drop-zone"
                   class="flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-300
@@ -185,6 +217,7 @@
                 </label>
                 <ul id="file-list" class="mt-3 space-y-1.5 text-sm text-gray-600 hidden"></ul>
               </div>
+              {% endif %}
 
             </div>
 
@@ -217,35 +250,37 @@
   const fileList = document.getElementById('file-list');
   const dropZone = document.getElementById('drop-zone');
 
-  function renderFiles(files) {
-    fileList.innerHTML = '';
-    if (!files.length) { fileList.classList.add('hidden'); return; }
-    fileList.classList.remove('hidden');
-    Array.from(files).forEach(f => {
-      const li = document.createElement('li');
-      li.className = 'flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg';
-      li.innerHTML = `
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-        </svg>
-        <span class="truncate flex-1">${f.name}</span>
-        <span class="text-gray-400 shrink-0">${(f.size/1024).toFixed(0)} KB</span>`;
-      fileList.appendChild(li);
+  if (input) {
+    function renderFiles(files) {
+      fileList.innerHTML = '';
+      if (!files.length) { fileList.classList.add('hidden'); return; }
+      fileList.classList.remove('hidden');
+      Array.from(files).forEach(f => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg';
+        li.innerHTML = `
+          <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+          </svg>
+          <span class="truncate flex-1">${f.name}</span>
+          <span class="text-gray-400 shrink-0">${(f.size/1024).toFixed(0)} KB</span>`;
+        fileList.appendChild(li);
+      });
+    }
+
+    input.addEventListener('change', () => renderFiles(input.files));
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-400','bg-indigo-50'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-400','bg-indigo-50'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('border-indigo-400','bg-indigo-50');
+      const dt = new DataTransfer();
+      Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
+      input.files = dt.files;
+      renderFiles(input.files);
     });
   }
-
-  input.addEventListener('change', () => renderFiles(input.files));
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-400','bg-indigo-50'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-400','bg-indigo-50'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.classList.remove('border-indigo-400','bg-indigo-50');
-    const dt = new DataTransfer();
-    Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
-    input.files = dt.files;
-    renderFiles(input.files);
-  });
 
   // ── Wiki panel ───────────────────────────────────────────────────────
   const listView     = document.getElementById('wiki-list-view');

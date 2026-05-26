@@ -93,11 +93,19 @@
             </a>
           {% endif %}
 
-          {% set settings_perm = current_user.permissions | selectattr('module', 'equalto', 'Settings') | first %}
-          {% if settings_perm and settings_perm.can_view %}
+          {% set settings_perm_nav = current_user.permissions | selectattr('module', 'equalto', 'Settings') | first %}
+          {% if settings_perm_nav and settings_perm_nav.can_view %}
             <a href="{{ url_for('admin.settings') }}"
                class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
               Settings
+            </a>
+          {% endif %}
+
+          {% set form_settings_perm_nav = current_user.permissions | selectattr('module', 'equalto', 'Form Settings') | first %}
+          {% if form_settings_perm_nav and form_settings_perm_nav.can_view %}
+            <a href="{{ url_for('admin.form_settings') }}"
+               class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
+              Form Settings
             </a>
           {% endif %}
         {% endif %}

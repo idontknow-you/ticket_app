@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, jsonify
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 from extensions import db
@@ -9,6 +9,7 @@ from decorators import require_permission
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from models.ticket import Ticket
+from services.form_service import get_form_config, CONFIGURABLE_FIELDS
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -26,21 +27,35 @@ def superadmin_required(f):
 @admin_bp.context_processor
 def admin_permissions():
     if not current_user.is_authenticated:
-        return dict(users_perm=None, settings_perm=None, reports_perm=None)
+        return dict(
+            users_perm=None,
+            settings_perm=None,
+            form_settings_perm=None,
+            reports_perm=None,
+        )
+
     if current_user.is_superadmin:
         class _All:
-            can_view = can_create = can_edit = can_delete = True
-        return dict(users_perm=_All(), settings_perm=_All(), reports_perm=_All())
-    users_perm = UserPermission.query.filter_by(
-        user_id=current_user.id, module='Users'
-    ).first()
-    settings_perm = UserPermission.query.filter_by(
-        user_id=current_user.id, module='Settings'
-    ).first()
-    reports_perm = UserPermission.query.filter_by(
-        user_id=current_user.id, module='Reports'
-    ).first()
-    return dict(users_perm=users_perm, settings_perm=settings_perm, reports_perm=reports_perm)
+            can_view = can_create = can_edit = can_delete = can_assign = True
+
+        return dict(
+            users_perm=_All(),
+            settings_perm=_All(),
+            form_settings_perm=_All(),
+            reports_perm=_All(),
+        )
+
+    def _perm(module):
+        return UserPermission.query.filter_by(
+            user_id=current_user.id, module=module
+        ).first()
+
+    return dict(
+        users_perm=_perm('Users'),
+        settings_perm=_perm('Settings'),
+        form_settings_perm=_perm('Form Settings'),
+        reports_perm=_perm('Reports'),
+    )
 
 
 # ── Users ──────────────────────────────────────────────────────────────────
@@ -173,6 +188,37 @@ def save_permissions():
     return redirect(url_for('admin.permissions', user_id=user_id, module=module))
 
 
+@admin_bp.route('/permissions/autosave', methods=['POST'])
+@login_required
+@superadmin_required
+def autosave_permission():
+    """AJAX endpoint — called on checkbox toggle, no page reload needed."""
+    data     = request.get_json(force=True)
+    user_id  = data.get('user_id')
+    module   = data.get('module', '').strip()
+    perm_key = data.get('perm_key', '').strip()
+    value    = bool(data.get('value'))
+
+    if not user_id or not module or not perm_key:
+        return jsonify(ok=False, error='Missing fields'), 400
+
+    if module not in MODULES:
+        return jsonify(ok=False, error='Invalid module'), 400
+
+    allowed_keys = {'can_view', 'can_create', 'can_edit', 'can_delete', 'can_assign'}
+    if perm_key not in allowed_keys:
+        return jsonify(ok=False, error='Invalid permission key'), 400
+
+    perm = UserPermission.query.filter_by(user_id=user_id, module=module).first()
+    if not perm:
+        perm = UserPermission(user_id=user_id, module=module, granted_by=current_user.id)
+        db.session.add(perm)
+
+    setattr(perm, perm_key, value)
+    db.session.commit()
+    return jsonify(ok=True)
+
+
 # ── Settings ────────────────────────────────────────────────────────────────
 
 SETTINGS_KEYS = [
@@ -185,6 +231,7 @@ SETTINGS_KEYS = [
     'app_name',
     'app_url',
 ]
+
 
 @admin_bp.route('/settings')
 @login_required
@@ -216,9 +263,106 @@ def save_settings():
     return redirect(url_for('admin.settings'))
 
 
+@admin_bp.route('/settings/autosave', methods=['POST'])
+@login_required
+@require_permission('Settings', 'can_edit')
+def autosave_setting():
+    """AJAX endpoint for auto-saving a single SMTP / email-defaults setting."""
+    data  = request.get_json(force=True)
+    key   = data.get('key', '').strip()
+    value = data.get('value', '')
+
+    if key not in SETTINGS_KEYS:
+        return jsonify(ok=False, error='Invalid key'), 400
+
+    row = Setting.query.filter_by(key=key).first()
+    if row:
+        row.value = value
+    else:
+        db.session.add(Setting(key=key, value=value))
+
+    db.session.commit()
+    return jsonify(ok=True)
+
+
+# ── Form Settings ─────────────────────────────────────────────────────────────
+
+@admin_bp.route('/form-settings')
+@login_required
+@require_permission('Form Settings', 'can_view')
+def form_settings():
+    form_field_config = get_form_config()
+    return render_template('admin/form_settings.html', form_field_config=form_field_config)
+
+
+@admin_bp.route('/form-settings/save', methods=['POST'])
+@login_required
+@require_permission('Form Settings', 'can_edit')
+def save_form_settings():
+    for field in CONFIGURABLE_FIELDS:
+        visible  = 'true' if request.form.get(f'form_field_{field}_visible')  else 'false'
+        required = 'true' if request.form.get(f'form_field_{field}_required') else 'false'
+
+        if visible == 'false':
+            required = 'false'
+
+        for suffix, val in [('visible', visible), ('required', required)]:
+            key = f'form_field_{field}_{suffix}'
+            row = Setting.query.filter_by(key=key).first()
+            if row:
+                row.value = val
+            else:
+                db.session.add(Setting(key=key, value=val,
+                                       description=f'Public form field: {field} {suffix}'))
+
+    db.session.commit()
+    flash('Form settings saved.', 'success')
+    return redirect(url_for('admin.form_settings'))
+
+
+@admin_bp.route('/form-settings/autosave', methods=['POST'])
+@login_required
+@require_permission('Form Settings', 'can_edit')
+def autosave_form_field():
+    """AJAX endpoint — called on checkbox toggle for form field visibility/required."""
+    data   = request.get_json(force=True)
+    field  = data.get('field', '').strip()
+    suffix = data.get('suffix', '').strip()
+    value  = bool(data.get('value'))
+
+    if field not in CONFIGURABLE_FIELDS:
+        return jsonify(ok=False, error='Invalid field'), 400
+    if suffix not in ('visible', 'required'):
+        return jsonify(ok=False, error='Invalid suffix'), 400
+
+    key     = f'form_field_{field}_{suffix}'
+    str_val = 'true' if value else 'false'
+
+    row = Setting.query.filter_by(key=key).first()
+    if row:
+        row.value = str_val
+    else:
+        db.session.add(Setting(key=key, value=str_val,
+                               description=f'Public form field: {field} {suffix}'))
+
+    # If hiding a field, also force required=false
+    if suffix == 'visible' and not value:
+        req_key = f'form_field_{field}_required'
+        req_row = Setting.query.filter_by(key=req_key).first()
+        if req_row:
+            req_row.value = 'false'
+        else:
+            db.session.add(Setting(key=req_key, value='false',
+                                   description=f'Public form field: {field} required'))
+
+    db.session.commit()
+    return jsonify(ok=True)
+
+
 # ── Admin Panel ─────────────────────────────────────────────────────────────
 
 @admin_bp.route('/panel')
+@login_required
 @superadmin_required
 def panel():
     user_count = User.query.filter_by(is_superadmin=False, is_active=True).count()
@@ -257,8 +401,8 @@ def reports():
     )
 
     by_type = (
-        db.session.query(Ticket.ticket_type, func.count(Ticket.id))
-        .group_by(Ticket.ticket_type)
+        db.session.query(Ticket.type, func.count(Ticket.id))
+        .group_by(Ticket.type)
         .all()
     )
 

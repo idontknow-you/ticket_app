@@ -4,9 +4,17 @@
 {% block content %}
 <div class="max-w-5xl mx-auto px-6 py-10">
 
-  <div class="mb-8">
-    <h1 class="text-3xl font-bold text-gray-900" style="font-family: 'Playfair Display', serif;">Manage Users</h1>
-    <p class="text-sm text-gray-400 mt-1">Create and remove admin accounts.</p>
+  <div class="flex items-center gap-4 mb-8">
+    {% if current_user.is_superadmin %}
+    <a href="{{ url_for('admin.panel') }}"
+       class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+      ← Back
+    </a>
+    {% endif %}
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900" style="font-family: 'Playfair Display', serif;">Manage Users</h1>
+      <p class="text-sm text-gray-400 mt-1">Create and remove admin accounts.</p>
+    </div>
   </div>
 
   {# ── Create user form ── #}

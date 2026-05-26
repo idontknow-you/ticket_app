@@ -48,11 +48,13 @@ def create_app():
         from routes.public import public_bp
         from routes.tickets import tickets_bp
         from routes.admin import admin_bp
+        from routes.wiki import wiki_bp
 
         app.register_blueprint(auth_bp)
         app.register_blueprint(public_bp)
         app.register_blueprint(tickets_bp)
         app.register_blueprint(admin_bp)
+        app.register_blueprint(wiki_bp)
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -76,9 +78,6 @@ def auth_check():
     from flask_login import current_user
     from flask import jsonify
     return jsonify({'authenticated': current_user.is_authenticated})
-
-from routes.wiki import wiki_bp
-app.register_blueprint(wiki_bp)
 
 if __name__ == '__main__':
     app.run(debug=True)

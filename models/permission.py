@@ -2,7 +2,7 @@ from extensions import db
 from datetime import datetime
 
 
-MODULES = ['Tickets', 'Wiki', 'Users', 'Settings', 'Reports']
+MODULES = ['Tickets', 'Wiki', 'Users', 'Settings','Form Settings', 'Reports']
 
 # Which permissions apply to each module (True = checkbox, False = N/A)
 MODULE_PERMISSION_MAP = {
@@ -10,6 +10,7 @@ MODULE_PERMISSION_MAP = {
     'Wiki':     {'can_view': True, 'can_create': True, 'can_edit': True, 'can_delete': True, 'can_assign': False},
     'Users':    {'can_view': True, 'can_create': True, 'can_edit': True, 'can_delete': True, 'can_assign': False},
     'Settings': {'can_view': True, 'can_create': False, 'can_edit': True, 'can_delete': False, 'can_assign': False},
+    'Form Settings': {'can_view': True, 'can_create': False, 'can_edit': True, 'can_delete': False, 'can_assign': False},
     'Reports':  {'can_view': True, 'can_create': False, 'can_edit': False, 'can_delete': False, 'can_assign': False},
 }
 
@@ -19,6 +20,7 @@ MODULE_AUTO_GRANTED = {
     'Wiki':     {'can_view'},
     'Users':    {'can_view'},
     'Settings': set(),
+    'Form Settings': set(),
     'Reports':  set(),
 }
 

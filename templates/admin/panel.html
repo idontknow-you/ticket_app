@@ -69,7 +69,22 @@
           <h2 class="text-xl font-semibold text-gray-800 playfair group-hover:text-gray-900">Settings</h2>
         </div>
       </div>
-      <p class="mt-4 text-sm text-gray-500">Configure SMTP, app name, support email, and URLs.</p>
+      <p class="mt-4 text-sm text-gray-500">Configure SMTP and email defaults.</p>
+      <div class="mt-6 text-sm font-medium text-gray-600 group-hover:text-gray-900 transition flex items-center gap-1">
+        Open <span class="group-hover:translate-x-0.5 transition-transform inline-block">→</span>
+      </div>
+    </a>
+
+    <!-- Form Settings card -->
+    <a href="{{ url_for('admin.form_settings') }}"
+       class="group bg-white border border-gray-200 rounded-xl p-7 hover:shadow-md hover:border-gray-300 transition-all">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Manage</p>
+          <h2 class="text-xl font-semibold text-gray-800 playfair group-hover:text-gray-900">Form Settings</h2>
+        </div>
+      </div>
+      <p class="mt-4 text-sm text-gray-500">Configure which fields appear on the public submission form.</p>
       <div class="mt-6 text-sm font-medium text-gray-600 group-hover:text-gray-900 transition flex items-center gap-1">
         Open <span class="group-hover:translate-x-0.5 transition-transform inline-block">→</span>
       </div>

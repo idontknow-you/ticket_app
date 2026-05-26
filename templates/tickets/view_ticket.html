@@ -29,7 +29,9 @@
         <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">{{ ticket.status }}</span>
       {% endif %}
 
-      {% if ticket.priority == 'high' %}
+      {% if ticket.priority == 'urgent' %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-900 text-white">Urgent</span>
+      {% elif ticket.priority == 'high' %}
         <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">High</span>
       {% elif ticket.priority == 'medium' %}
         <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">Medium</span>
@@ -248,9 +250,10 @@
             <select name="priority"
                     class="w-full rounded-lg border border-gray-200 pl-3 py-2 text-sm text-gray-900 bg-white bg-none
                            focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
-              <option value="low"    {% if ticket.priority == 'low' %}selected{% endif %}>Low</option>
-              <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>Medium</option>
+              <option value="urgent" {% if ticket.priority == 'urgent' %}selected{% endif %}>Urgent</option>
               <option value="high"   {% if ticket.priority == 'high' %}selected{% endif %}>High</option>
+              <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>Medium</option>
+              <option value="low"    {% if ticket.priority == 'low' %}selected{% endif %}>Low</option>
             </select>
           </div>
           {% endif %}

@@ -3,8 +3,9 @@ import uuid
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from extensions import db
 from models.ticket import Ticket, TicketAttachment
-from models.ticket import generate_ticket_number
-from models.wiki import WikiPage
+from models.settings import Setting
+from services.ticket_service import generate_ticket_number
+from services.wiki_service import get_published_top_level_pages
 from services.email_service import send_ticket_confirmation
 
 public_bp = Blueprint('public', __name__)
@@ -22,6 +23,9 @@ TYPES = ['Issue', 'Bug', 'Other']
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Fields that are configurable (name/email are always required, never toggled)
+CONFIGURABLE_FIELDS = ['subject', 'description', 'department', 'module', 'type', 'attachments']
 
 
 def allowed_file(filename):
@@ -51,66 +55,117 @@ def save_attachment(file, ticket_id):
 
 
 def get_wiki_pages():
-    return WikiPage.query.filter_by(is_published=True, parent_id=None).order_by(WikiPage.title).all()
+    return get_published_top_level_pages()
+
+
+def get_form_config():
+    """
+    Read per-field visibility and required flags from the Setting EAV table.
+    Returns a dict like:
+      {
+        'subject':     {'visible': True,  'required': True},
+        'description': {'visible': True,  'required': True},
+        'department':  {'visible': False, 'required': False},
+        'module':      {'visible': True,  'required': True},
+        'type':        {'visible': True,  'required': True},
+        'attachments': {'visible': True,  'required': False},
+      }
+    Falls back to sensible defaults if no setting row exists yet.
+    """
+    defaults = {
+        'subject':     {'visible': True,  'required': True},
+        'description': {'visible': True,  'required': True},
+        'department':  {'visible': False, 'required': False},
+        'module':      {'visible': True,  'required': True},
+        'type':        {'visible': True,  'required': True},
+        'attachments': {'visible': True,  'required': False},
+    }
+
+    config = {}
+    for field in CONFIGURABLE_FIELDS:
+        vis_row = Setting.query.filter_by(key=f'form_field_{field}_visible').first()
+        req_row = Setting.query.filter_by(key=f'form_field_{field}_required').first()
+
+        visible  = (vis_row.value == 'true') if vis_row else defaults[field]['visible']
+        required = (req_row.value == 'true') if req_row else defaults[field]['required']
+
+        # If a field is hidden it can never be required
+        config[field] = {'visible': visible, 'required': required and visible}
+
+    return config
 
 
 @public_bp.route('/', methods=['GET', 'POST'])
 def submit():
+    form_config = get_form_config()
+
     if request.method == 'POST':
         submitter_name  = request.form.get('submitter_name', '').strip()
         submitter_email = request.form.get('submitter_email', '').strip()
         subject         = request.form.get('subject', '').strip()
         description     = request.form.get('description', '').strip()
         files           = request.files.getlist('attachments')
-        type            = request.form.get('type', '').strip()
+        ticket_type     = request.form.get('type', '').strip()
         module          = request.form.get('module', '').strip()
+        department      = request.form.get('department', '').strip()
 
         errors = []
+
+        # Always-required fields
         if not submitter_name:
             errors.append('Your name is required.')
         if not submitter_email or '@' not in submitter_email:
             errors.append('A valid email address is required.')
-        if not subject:
-            errors.append('Subject is required.')
-        if not description:
-            errors.append('Please describe your issue.')
-        if not type:
-            errors.append('Type is required.')
-        if not module:
-            errors.append('Module is required.')
 
+        # Conditionally-required fields — only validate if visible AND required
+        if form_config['subject']['visible'] and form_config['subject']['required'] and not subject:
+            errors.append('Subject is required.')
+        if form_config['description']['visible'] and form_config['description']['required'] and not description:
+            errors.append('Please describe your issue.')
+        if form_config['type']['visible'] and form_config['type']['required'] and not ticket_type:
+            errors.append('Type is required.')
+        if form_config['module']['visible'] and form_config['module']['required'] and not module:
+            errors.append('Module is required.')
+        if form_config['department']['visible'] and form_config['department']['required'] and not department:
+            errors.append('Department is required.')
+
+        # File validation (only if attachments field is visible)
         valid_files = []
-        for f in files:
-            if f and f.filename:
-                if not allowed_file(f.filename):
-                    errors.append(f'"{f.filename}" is not allowed. Only images and PDFs are accepted.')
-                else:
-                    f.seek(0, os.SEEK_END)
-                    size = f.tell()
-                    f.seek(0)
-                    if size > MAX_FILE_SIZE:
-                        errors.append(f'"{f.filename}" exceeds the 10MB limit.')
+        if form_config['attachments']['visible']:
+            for f in files:
+                if f and f.filename:
+                    if not allowed_file(f.filename):
+                        errors.append(f'"{f.filename}" is not allowed. Only images and PDFs are accepted.')
                     else:
-                        valid_files.append(f)
+                        f.seek(0, os.SEEK_END)
+                        size = f.tell()
+                        f.seek(0)
+                        if size > MAX_FILE_SIZE:
+                            errors.append(f'"{f.filename}" exceeds the 10MB limit.')
+                        else:
+                            valid_files.append(f)
 
         if errors:
             for error in errors:
                 flash(error, 'error')
             return render_template('public/submit_form.html',
                                    modules=MODULES, types=TYPES,
-                                   form=request.form, wiki_pages=get_wiki_pages())
+                                   form=request.form,
+                                   form_config=form_config,
+                                   wiki_pages=get_wiki_pages())
 
-        ticket_number = generate_ticket_number(type)
+        # Use fallback values for hidden fields so the Ticket row is always valid
+        ticket_number = generate_ticket_number(ticket_type or 'Other')
         ticket = Ticket(
             ticket_number=ticket_number,
             submitter_name=submitter_name,
             submitter_email=submitter_email,
-            subject=subject,
-            description=description,
-            status='open',
-            priority='low',
-            type=type,
-            module=module
+            subject=subject or '(no subject)',
+            description=description or '',
+            status='Open',
+            priority='Low',
+            type=ticket_type or 'Other',
+            module=module or '',
         )
         db.session.add(ticket)
         db.session.flush()
@@ -126,7 +181,7 @@ def submit():
                 to_email=submitter_email,
                 to_name=submitter_name,
                 ticket_number=ticket_number,
-                subject=subject,
+                subject=subject or '(no subject)',
             )
         except Exception as e:
             current_app.logger.error(f'Failed to send confirmation email: {e}')
@@ -135,7 +190,9 @@ def submit():
 
     return render_template('public/submit_form.html',
                            modules=MODULES, types=TYPES,
-                           form={}, wiki_pages=get_wiki_pages())
+                           form={},
+                           form_config=form_config,
+                           wiki_pages=get_wiki_pages())
 
 
 @public_bp.route('/confirmation/<ticket_number>')

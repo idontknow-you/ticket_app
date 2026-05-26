@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Form Settings — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-10 px-4">
+
+  <div class="flex items-center gap-4 mb-8">
+    {% if current_user.is_superadmin %}
+    <a href="{{ url_for('admin.panel') }}"
+       class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+      ← Back
+    </a>
+    {% endif %}
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-800 playfair">Form Settings</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Control which fields appear on the public ticket submission form.</p>
+    </div>
+    <span id="form-settings-indicator"
+          class="ml-auto text-xs text-gray-400 transition-opacity duration-300 opacity-0">
+      Saved ✓
+    </span>
+  </div>
+
+  {% if form_settings_perm and form_settings_perm.can_view %}
+
+  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+
+    {# Column headers #}
+    <div class="px-6 py-3 grid grid-cols-3 gap-4 bg-gray-50 border-b border-gray-200">
+      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Field</span>
+      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide text-center">Visible</span>
+      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide text-center">Required</span>
+    </div>
+
+    <div class="divide-y divide-gray-100">
+
+      {# Always-on rows (read-only display) #}
+      {% for label in [('Full Name', 'name'), ('Email Address', 'email')] %}
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center bg-gray-50/40">
+        <span class="text-sm font-medium text-gray-500">
+          {{ label[0] }}
+          <span class="ml-1.5 text-xs text-gray-400 font-normal">(always on)</span>
+        </span>
+        <div class="flex justify-center">
+          <input type="checkbox" checked disabled
+                 class="h-4 w-4 rounded border-gray-300 text-indigo-600 opacity-40 cursor-not-allowed">
+        </div>
+        <div class="flex justify-center">
+          <input type="checkbox" checked disabled
+                 class="h-4 w-4 rounded border-gray-300 text-indigo-600 opacity-40 cursor-not-allowed">
+        </div>
+      </div>
+      {% endfor %}
+
+      {# Configurable rows #}
+      {% set configurable = [
+        ('Subject',     'subject'),
+        ('Description', 'description'),
+        ('Department',  'department'),
+        ('Module',      'module'),
+        ('Type',        'type'),
+        ('Attachments', 'attachments'),
+      ] %}
+
+      {% for label, key in configurable %}
+      {% set cfg = form_field_config[key] %}
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <span class="text-sm font-medium text-gray-700">{{ label }}</span>
+
+        <div class="flex justify-center">
+          <input type="checkbox"
+                 id="vis_{{ key }}"
+                 {% if cfg.visible %}checked{% endif %}
+                 {% if not form_settings_perm.can_edit %}disabled{% endif %}
+                 onchange="onVisChange(this, '{{ key }}')"
+                 class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500
+                        disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer">
+        </div>
+
+        <div class="flex justify-center">
+          <input type="checkbox"
+                 id="req_{{ key }}"
+                 {% if cfg.required %}checked{% endif %}
+                 {% if not cfg.visible or not form_settings_perm.can_edit %}disabled{% endif %}
+                 onchange="autoSaveFormField('{{ key }}', 'required', this.checked)"
+                 class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500
+                        disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer">
+        </div>
+      </div>
+      {% endfor %}
+
+    </div>
+  </div>
+
+  {% if not form_settings_perm.can_edit %}
+  <p class="text-sm text-gray-400 text-right mt-4">You have read-only access to form settings.</p>
+  {% endif %}
+
+  {% endif %}
+
+</div>
+
+<script>
+  async function autoSaveFormField(field, suffix, value) {
+    try {
+      const res = await fetch('{{ url_for("admin.autosave_form_field") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, suffix, value }),
+      });
+      const data = await res.json();
+      if (data.ok) showSaved();
+    } catch (err) {
+      console.error('Auto-save failed:', err);
+    }
+  }
+
+  function onVisChange(visCheckbox, key) {
+    const reqCheckbox = document.getElementById('req_' + key);
+    if (!reqCheckbox) return;
+    if (!visCheckbox.checked) {
+      reqCheckbox.checked  = false;
+      reqCheckbox.disabled = true;
+    } else {
+      reqCheckbox.disabled = false;
+    }
+    autoSaveFormField(key, 'visible', visCheckbox.checked);
+  }
+
+  function showSaved() {
+    const el = document.getElementById('form-settings-indicator');
+    if (!el) return;
+    el.classList.remove('opacity-0');
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => el.classList.add('opacity-0'), 1800);
+  }
+</script>
+{% endblock %}

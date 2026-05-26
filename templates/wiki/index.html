@@ -6,13 +6,21 @@
   <div class="max-w-5xl mx-auto">
 
     <div class="flex items-center justify-between mb-8">
-      <div>
-        <h1 class="text-3xl font-bold font-serif text-gray-900 tracking-tight">Wiki Pages</h1>
-        <p class="mt-1 text-sm text-gray-500">Manage articles shown in the public help panel.</p>
+      <div class="flex items-center gap-4">
+        {% if current_user.is_superadmin %}
+        <a href="{{ url_for('admin.panel') }}"
+           class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+          ← Back
+        </a>
+        {% endif %}
+        <div>
+          <h1 class="text-3xl font-bold font-serif text-gray-900 tracking-tight">Wiki Pages</h1>
+          <p class="mt-1 text-sm text-gray-500">Manage articles shown in the public help panel.</p>
+        </div>
       </div>
       {% if wiki_perm and wiki_perm.can_create %}
         <a href="{{ url_for('wiki.create') }}"
-           class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition shadow-sm">
+           class="inline-flex items-center gap-2 bg-indigo-900 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
           </svg>
@@ -66,7 +74,7 @@
                 <td class="px-6 py-4">
                   <div class="flex items-center justify-end gap-2">
                     {% if wiki_perm and wiki_perm.can_edit %}
-                      <form method="POST" action="{{ url_for('wiki.toggle_publish', page_id=page.id) }}">
+                      <form method="POST" action="{{ url_for('wiki.toggle_publish_route', page_id=page.id) }}">
                         <button type="submit"
                           class="text-xs px-3 py-1.5 rounded-lg border transition
                             {% if page.is_published %}border-gray-200 text-gray-500 hover:bg-gray-50
@@ -128,7 +136,7 @@
                   <td class="px-6 py-3">
                     <div class="flex items-center justify-end gap-2">
                       {% if wiki_perm and wiki_perm.can_edit %}
-                        <form method="POST" action="{{ url_for('wiki.toggle_publish', page_id=child.id) }}">
+                        <form method="POST" action="{{ url_for('wiki.toggle_publish_route', page_id=child.id) }}">
                           <button type="submit"
                             class="text-xs px-3 py-1.5 rounded-lg border transition
                               {% if child.is_published %}border-gray-200 text-gray-500 hover:bg-gray-50

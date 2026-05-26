@@ -4,6 +4,7 @@ from extensions import db
 from models.ticket import Ticket, TicketComment, TicketHistory
 from models.user import User
 from models.permission import UserPermission
+from services.ticket_service import set_closed_at
 
 tickets_bp = Blueprint('tickets', __name__)
 
@@ -22,16 +23,19 @@ def _ticket_perm():
 @tickets_bp.route('/dashboard')
 @login_required
 def dashboard():
-    status_filter = request.args.get('status', 'all')
+    status_filter   = request.args.get('status', 'all')
     priority_filter = request.args.get('priority', 'all')
-    search = request.args.get('search', '').strip()
+    type_filter     = request.args.get('type', 'all')
+    search          = request.args.get('search', '').strip()
 
     query = Ticket.query
 
     if status_filter != 'all':
-        query = query.filter_by(status=status_filter)
+        query = query.filter(Ticket.status == status_filter)
     if priority_filter != 'all':
-        query = query.filter_by(priority=priority_filter)
+        query = query.filter(Ticket.priority == priority_filter)
+    if type_filter != 'all':
+        query = query.filter(Ticket.type == type_filter)
     if search:
         query = query.filter(
             db.or_(
@@ -42,18 +46,24 @@ def dashboard():
             )
         )
 
-    tickets = query.order_by(Ticket.created_at.desc()).all()
+    # Sort: status (open > in_progress > closed) > priority (urgent > high > medium > low) > type (Issue > Bug > Other)
+    from sqlalchemy import case
+    status_order   = case({'open': 0, 'in_progress': 1, 'closed': 2}, value=Ticket.status,   else_=3)
+    priority_order = case({'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}, value=Ticket.priority, else_=4)
+    type_order     = case({'Issue': 0, 'Bug': 1, 'Other': 2}, value=Ticket.type, else_=3)
+    tickets = query.order_by(status_order, priority_order, type_order).all()
 
     total       = Ticket.query.count()
-    open_count  = Ticket.query.filter_by(status='open').count()
-    in_progress = Ticket.query.filter_by(status='in_progress').count()
-    closed      = Ticket.query.filter_by(status='closed').count()
+    open_count  = Ticket.query.filter(Ticket.status == 'open').count()
+    in_progress = Ticket.query.filter(Ticket.status == 'in_progress').count()
+    closed      = Ticket.query.filter(Ticket.status == 'closed').count()
 
     return render_template(
         'tickets/dashboard.html',
         tickets=tickets,
         status_filter=status_filter,
         priority_filter=priority_filter,
+        type_filter=type_filter,
         search=search,
         total=total,
         open_count=open_count,
@@ -68,14 +78,9 @@ def view_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     users = User.query.filter_by(is_active=True).order_by(User.name).all()
     ticket_perm = _ticket_perm()
-    return render_template('tickets/view_ticket.html', ticket=ticket, users=users, ticket_perm=ticket_perm)
+    return render_template('tickets/view_ticket.html',
+                           ticket=ticket, users=users, ticket_perm=ticket_perm)
 
-@tickets_bp.after_request
-def add_no_cache(response):
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
 
 @tickets_bp.route('/tickets/<int:ticket_id>/update', methods=['POST'])
 @login_required
@@ -108,6 +113,9 @@ def update_ticket(ticket_id):
                     setattr(ticket, field, int(new_val) if new_val else None)
                 else:
                     setattr(ticket, field, new_val)
+
+    # Keep closed_at in sync with status
+    set_closed_at(ticket)
 
     db.session.commit()
     flash('Ticket updated.', 'success')

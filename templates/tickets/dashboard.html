@@ -31,7 +31,7 @@
   </div>
 
   <!-- Filters -->
-  <form method="GET" action="{{ url_for('tickets.dashboard') }}"
+  <form id="filter-form" method="GET" action="{{ url_for('tickets.dashboard') }}"
         class="bg-white border border-gray-200 rounded-xl px-5 py-4 mb-6 flex flex-wrap gap-3 items-end">
 
     <div class="flex-1 min-w-[180px]">
@@ -39,6 +39,7 @@
       <input
         type="text"
         name="search"
+        id="search-input"
         value="{{ search }}"
         placeholder="Ticket #, subject, name, email…"
         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -47,34 +48,52 @@
 
     <div>
       <label class="block text-xs text-gray-500 mb-1">Status</label>
-      <select name="status" class="rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <option value="all"      {% if status_filter == 'all' %}selected{% endif %}>All statuses</option>
-        <option value="open"     {% if status_filter == 'open' %}selected{% endif %}>Open</option>
+      <select name="status" onchange="document.getElementById('filter-form').submit()"
+              class="rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <option value="all"         {% if status_filter == 'all' %}selected{% endif %}>All statuses</option>
+        <option value="open"        {% if status_filter == 'open' %}selected{% endif %}>Open</option>
         <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>In Progress</option>
-        <option value="closed"   {% if status_filter == 'closed' %}selected{% endif %}>Closed</option>
+        <option value="closed"      {% if status_filter == 'closed' %}selected{% endif %}>Closed</option>
       </select>
     </div>
 
     <div>
       <label class="block text-xs text-gray-500 mb-1">Priority</label>
-      <select name="priority" class="rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <select name="priority" onchange="document.getElementById('filter-form').submit()"
+              class="rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
         <option value="all"    {% if priority_filter == 'all' %}selected{% endif %}>All priorities</option>
-        <option value="low"    {% if priority_filter == 'low' %}selected{% endif %}>Low</option>
-        <option value="medium" {% if priority_filter == 'medium' %}selected{% endif %}>Medium</option>
-        <option value="high"   {% if priority_filter == 'high' %}selected{% endif %}>High</option>
         <option value="urgent" {% if priority_filter == 'urgent' %}selected{% endif %}>Urgent</option>
+        <option value="high"   {% if priority_filter == 'high' %}selected{% endif %}>High</option>
+        <option value="medium" {% if priority_filter == 'medium' %}selected{% endif %}>Medium</option>
+        <option value="low"    {% if priority_filter == 'low' %}selected{% endif %}>Low</option>
       </select>
     </div>
 
-    <button type="submit"
-            class="bg-indigo-900 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg transition">
-      Filter
-    </button>
-    {% if search or status_filter != 'all' or priority_filter != 'all' %}
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Type</label>
+      <select name="type" onchange="document.getElementById('filter-form').submit()"
+              class="rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <option value="all"   {% if type_filter == 'all' %}selected{% endif %}>All types</option>
+        <option value="Issue" {% if type_filter == 'Issue' %}selected{% endif %}>Issue</option>
+        <option value="Bug"   {% if type_filter == 'Bug' %}selected{% endif %}>Bug</option>
+        <option value="Other" {% if type_filter == 'Other' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+
+    {% if search or status_filter != 'all' or priority_filter != 'all' or type_filter != 'all' %}
       <a href="{{ url_for('tickets.dashboard') }}"
          class="text-sm text-gray-400 hover:text-gray-700 py-2 transition">Clear</a>
     {% endif %}
   </form>
+
+  <script>
+    // Auto-submit search after 400ms pause
+    let _searchTimer;
+    document.getElementById('search-input').addEventListener('input', function() {
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(() => document.getElementById('filter-form').submit(), 400);
+    });
+  </script>
 
   <!-- Ticket table -->
   <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">

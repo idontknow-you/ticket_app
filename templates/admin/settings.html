@@ -13,124 +13,151 @@
     {% endif %}
     <div>
       <h1 class="text-2xl font-semibold text-gray-800 playfair">Settings</h1>
-      <p class="text-sm text-gray-500 mt-0.5">SMTP configuration and application defaults.</p>
+      <p class="text-sm text-gray-500 mt-0.5">SMTP and email configuration.</p>
+    </div>
+    <span id="settings-indicator"
+          class="ml-auto text-xs text-gray-400 transition-opacity duration-300 opacity-0">
+      Saved ✓
+    </span>
+  </div>
+
+  {# ── SMTP ────────────────────────────────────────────────────── #}
+  <div class="bg-white border border-gray-200 rounded-xl mb-6 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+      <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">SMTP</h2>
+    </div>
+    <div class="divide-y divide-gray-100">
+
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <label for="smtp_host" class="text-sm font-medium text-gray-600">Host</label>
+        <div class="col-span-2">
+          <input type="text" id="smtp_host" name="smtp_host"
+                 value="{{ values.smtp_host }}" placeholder="smtp.example.com"
+                 {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
+                 onblur="autoSaveSetting('smtp_host', this.value)"
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
+        </div>
+      </div>
+
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <label for="smtp_port" class="text-sm font-medium text-gray-600">Port</label>
+        <div class="col-span-2">
+          <input type="text" id="smtp_port" name="smtp_port"
+                 value="{{ values.smtp_port }}" placeholder="587"
+                 {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
+                 onblur="autoSaveSetting('smtp_port', this.value)"
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
+        </div>
+      </div>
+
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <label for="smtp_user" class="text-sm font-medium text-gray-600">Username</label>
+        <div class="col-span-2">
+          <input type="text" id="smtp_user" name="smtp_user"
+                 value="{{ values.smtp_user }}" placeholder="user@example.com"
+                 {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
+                 onblur="autoSaveSetting('smtp_user', this.value)"
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
+        </div>
+      </div>
+
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <label for="smtp_password" class="text-sm font-medium text-gray-600">Password</label>
+        <div class="col-span-2">
+          <input type="password" id="smtp_password" name="smtp_password"
+                 value="{{ values.smtp_password }}" placeholder="••••••••"
+                 {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
+                 onblur="autoSaveSetting('smtp_password', this.value)"
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
+        </div>
+      </div>
+
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <span class="text-sm font-medium text-gray-600">Use TLS</span>
+        <div class="col-span-2 flex items-center gap-2">
+          <input type="checkbox" id="smtp_use_tls" name="smtp_use_tls"
+                 {% if values.smtp_use_tls == 'true' %}checked{% endif %}
+                 {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
+                 onchange="autoSaveSetting('smtp_use_tls', this.checked ? 'true' : 'false')"
+                 class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
+          <label for="smtp_use_tls" class="text-sm text-gray-500">Enable TLS encryption</label>
+        </div>
+      </div>
+
     </div>
   </div>
 
-  <form method="POST" action="{{ url_for('admin.save_settings') }}">
-
-    {# ── SMTP ────────────────────────────────────────────────────── #}
-    <div class="bg-white border border-gray-200 rounded-xl mb-6 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
-        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">SMTP</h2>
-      </div>
-      <div class="divide-y divide-gray-100">
-
-        <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
-          <label for="smtp_host" class="text-sm font-medium text-gray-600">Host</label>
-          <div class="col-span-2">
-            <input type="text" id="smtp_host" name="smtp_host"
-                   value="{{ values.smtp_host }}" placeholder="smtp.example.com"
-                   {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-          </div>
-        </div>
-
-        <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
-          <label for="smtp_port" class="text-sm font-medium text-gray-600">Port</label>
-          <div class="col-span-2">
-            <input type="text" id="smtp_port" name="smtp_port"
-                   value="{{ values.smtp_port }}" placeholder="587"
-                   {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-          </div>
-        </div>
-
-        <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
-          <label for="smtp_user" class="text-sm font-medium text-gray-600">Username</label>
-          <div class="col-span-2">
-            <input type="text" id="smtp_user" name="smtp_user"
-                   value="{{ values.smtp_user }}" placeholder="user@example.com"
-                   {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-          </div>
-        </div>
-
-        <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
-          <label for="smtp_password" class="text-sm font-medium text-gray-600">Password</label>
-          <div class="col-span-2">
-            <input type="password" id="smtp_password" name="smtp_password"
-                   value="{{ values.smtp_password }}" placeholder="••••••••"
-                   {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-          </div>
-        </div>
-
-        <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
-          <span class="text-sm font-medium text-gray-600">Use TLS</span>
-          <div class="col-span-2 flex items-center gap-2">
-            <input type="checkbox" id="smtp_use_tls" name="smtp_use_tls"
-                   {% if values.smtp_use_tls == 'true' %}checked{% endif %}
-                   {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
-                   class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">
-            <label for="smtp_use_tls" class="text-sm text-gray-500">Enable TLS encryption</label>
-          </div>
-        </div>
-
-      </div>
+  {# ── Email Defaults ───────────────────────────────────────────── #}
+  <div class="bg-white border border-gray-200 rounded-xl mb-6 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+      <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Email Defaults</h2>
+      <p class="text-xs text-gray-400 mt-0.5">Used in outbound notification emails sent to ticket submitters.</p>
     </div>
+    <div class="divide-y divide-gray-100">
 
-    {# ── Application ─────────────────────────────────────────────── #}
-    <div class="bg-white border border-gray-200 rounded-xl mb-8 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
-        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Application</h2>
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <label for="support_email" class="text-sm font-medium text-gray-600">From Address</label>
+        <div class="col-span-2">
+          <input type="text" id="support_email" name="support_email"
+                 value="{{ values.support_email }}" placeholder="support@example.com"
+                 {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
+                 onblur="autoSaveSetting('support_email', this.value)"
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
+        </div>
       </div>
-      <div class="divide-y divide-gray-100">
 
-        <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
-          <label for="support_email" class="text-sm font-medium text-gray-600">Support Email</label>
-          <div class="col-span-2">
-            <input type="text" id="support_email" name="support_email"
-                   value="{{ values.support_email }}" placeholder="support@example.com"
-                   {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-          </div>
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <label for="app_name" class="text-sm font-medium text-gray-600">Sender Name</label>
+        <div class="col-span-2">
+          <input type="text" id="app_name" name="app_name"
+                 value="{{ values.app_name }}" placeholder="Support Portal"
+                 {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
+                 onblur="autoSaveSetting('app_name', this.value)"
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
         </div>
-
-        <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
-          <label for="app_name" class="text-sm font-medium text-gray-600">App Name</label>
-          <div class="col-span-2">
-            <input type="text" id="app_name" name="app_name"
-                   value="{{ values.app_name }}" placeholder="Support Portal"
-                   {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-          </div>
-        </div>
-
-        <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
-          <label for="app_url" class="text-sm font-medium text-gray-600">App URL</label>
-          <div class="col-span-2">
-            <input type="text" id="app_url" name="app_url"
-                   value="{{ values.app_url }}" placeholder="https://support.example.com"
-                   {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
-          </div>
-        </div>
-
       </div>
-    </div>
 
-    {% if settings_perm and settings_perm.can_edit %}
-    <div class="flex justify-end">
-      <button type="submit"
-              class="bg-indigo-900 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-md transition-colors">
-        Save Settings
-      </button>
-    </div>
-    {% else %}
-    <p class="text-sm text-gray-400 text-right">You have read-only access to settings.</p>
-    {% endif %}
+      <div class="px-6 py-4 grid grid-cols-3 gap-4 items-center">
+        <label for="app_url" class="text-sm font-medium text-gray-600">App URL</label>
+        <div class="col-span-2">
+          <input type="text" id="app_url" name="app_url"
+                 value="{{ values.app_url }}" placeholder="https://support.example.com"
+                 {% if not settings_perm or not settings_perm.can_edit %}disabled{% endif %}
+                 onblur="autoSaveSetting('app_url', this.value)"
+                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed">
+        </div>
+      </div>
 
-  </form>
+    </div>
+  </div>
+
+  {% if not settings_perm or not settings_perm.can_edit %}
+  <p class="text-sm text-gray-400 text-right mb-6">You have read-only access to settings.</p>
+  {% endif %}
+
 </div>
+
+<script>
+  async function autoSaveSetting(key, value) {
+    try {
+      const res = await fetch('{{ url_for("admin.autosave_setting") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value }),
+      });
+      const data = await res.json();
+      if (data.ok) showSaved();
+    } catch (err) {
+      console.error('Auto-save failed:', err);
+    }
+  }
+
+  function showSaved() {
+    const el = document.getElementById('settings-indicator');
+    if (!el) return;
+    el.classList.remove('opacity-0');
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => el.classList.add('opacity-0'), 1800);
+  }
+</script>
 {% endblock %}
