@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-6 py-10">
+
+  <div class="flex items-center gap-4 mb-10">
+    <a href="{{ url_for('admin.panel') }}"
+       class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+      ← Back
+    </a>
+    <h1 class="text-2xl font-semibold text-gray-800 playfair">Reports</h1>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+
+    <div class="bg-white border border-gray-200 rounded-xl p-7">
+      <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Total Tickets</p>
+      <p class="text-4xl font-light text-gray-800 playfair mt-2">{{ total_tickets }}</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-xl p-7">
+      <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Open</p>
+      <p class="text-4xl font-light text-gray-800 playfair mt-2">{{ open_tickets }}</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-xl p-7">
+      <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Closed</p>
+      <p class="text-4xl font-light text-gray-800 playfair mt-2">{{ closed_tickets_count }}</p>
+    </div>
+
+  </div>
+
+  <!-- Avg resolution time -->
+  {% if avg_resolution_hours is not none %}
+  <div class="bg-white border border-gray-200 rounded-xl p-7 mb-6">
+    <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-1">Avg. Resolution Time</p>
+    <p class="text-4xl font-light text-gray-800 playfair mt-2">{{ avg_resolution_hours }}<span class="text-lg text-gray-400 ml-1">hrs</span></p>
+    <p class="text-sm text-gray-400 mt-2">Across all closed tickets</p>
+  </div>
+  {% endif %}
+
+  <!-- Volume over time -->
+  <div class="bg-white border border-gray-200 rounded-xl p-7 mb-6">
+    <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-6">Tickets Created — Last 30 Days</p>
+    {% if daily_volume %}
+      {% set max_count = daily_volume | map(attribute='count') | max %}
+      <div class="flex items-end gap-1 h-32">
+        {% for row in daily_volume %}
+          {% set pct = (row.count / max_count * 100) | int %}
+          <div class="flex-1 flex flex-col items-center gap-1 group relative">
+            <div class="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-10 pointer-events-none">
+              <div class="bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
+                {{ row.day }}: {{ row.count }}
+              </div>
+              <div class="w-2 h-2 bg-gray-800 rotate-45 -mt-1"></div>
+            </div>
+            <div class="w-full bg-indigo-900 rounded-sm transition-all" style="height: {{ pct if pct > 4 else 4 }}%;"></div>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="flex justify-between mt-3 text-xs text-gray-400">
+        <span>{{ daily_volume[0].day }}</span>
+        <span>{{ daily_volume[-1].day }}</span>
+      </div>
+    {% else %}
+      <p class="text-sm text-gray-400">No ticket data in the last 30 days.</p>
+    {% endif %}
+  </div>
+
+  <!-- Breakdowns row -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
+
+    <!-- By Status -->
+    <div class="bg-white border border-gray-200 rounded-xl p-7">
+      <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-5">By Status</p>
+      {% if by_status %}
+        {% set total_s = namespace(val=0) %}
+        {% for status, count in by_status %}{% set total_s.val = total_s.val + count %}{% endfor %}
+        <ul class="space-y-3">
+          {% for status, count in by_status %}
+          <li>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-gray-700">{{ status or 'Unknown' }}</span>
+              <span class="text-gray-400 tabular-nums">{{ count }}</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1">
+              <div class="bg-indigo-900 h-1 rounded-full" style="width: {{ ((count / total_s.val) * 100) | round(1) }}%;"></div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-gray-400">No data.</p>
+      {% endif %}
+    </div>
+
+    <!-- By Priority -->
+    <div class="bg-white border border-gray-200 rounded-xl p-7">
+      <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-5">By Priority</p>
+      {% if by_priority %}
+        {% set total_p = namespace(val=0) %}
+        {% for priority, count in by_priority %}{% set total_p.val = total_p.val + count %}{% endfor %}
+        {% set priority_colors = {'Critical': 'bg-red-500', 'High': 'bg-orange-400', 'Medium': 'bg-amber-400', 'Low': 'bg-green-500'} %}
+        <ul class="space-y-3">
+          {% for priority, count in by_priority %}
+          <li>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-gray-700">{{ priority or 'Unknown' }}</span>
+              <span class="text-gray-400 tabular-nums">{{ count }}</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1">
+              <div class="{{ priority_colors.get(priority, 'bg-indigo-900') }} h-1 rounded-full" style="width: {{ ((count / total_p.val) * 100) | round(1) }}%;"></div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-gray-400">No data.</p>
+      {% endif %}
+    </div>
+
+    <!-- By Type -->
+    <div class="bg-white border border-gray-200 rounded-xl p-7">
+      <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-5">By Type</p>
+      {% if by_type %}
+        {% set total_t = namespace(val=0) %}
+        {% for ticket_type, count in by_type %}{% set total_t.val = total_t.val + count %}{% endfor %}
+        <ul class="space-y-3">
+          {% for ticket_type, count in by_type %}
+          <li>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-gray-700">{{ ticket_type or 'Unknown' }}</span>
+              <span class="text-gray-400 tabular-nums">{{ count }}</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1">
+              <div class="bg-indigo-900 h-1 rounded-full" style="width: {{ ((count / total_t.val) * 100) | round(1) }}%;"></div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-gray-400">No data.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Per-assignee -->
+  <div class="bg-white border border-gray-200 rounded-xl p-7">
+    <p class="text-xs uppercase tracking-widest text-gray-400 font-medium mb-5">Tickets by Assignee</p>
+    {% if per_assignee %}
+      {% set max_a = per_assignee | map(attribute='count') | max %}
+      <ul class="space-y-3">
+        {% for row in per_assignee %}
+        <li>
+          <div class="flex justify-between text-sm mb-1">
+            <span class="text-gray-700">{{ row.username }}</span>
+            <span class="text-gray-400 tabular-nums">{{ row.count }}</span>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-1">
+            <div class="bg-indigo-900 h-1 rounded-full" style="width: {{ ((row.count / max_a) * 100) | int }}%;"></div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-sm text-gray-400">No assigned tickets.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

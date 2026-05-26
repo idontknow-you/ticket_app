@@ -3,8 +3,20 @@ from flask_login import login_required, current_user
 from extensions import db
 from models.ticket import Ticket, TicketComment, TicketHistory
 from models.user import User
+from models.permission import UserPermission
 
 tickets_bp = Blueprint('tickets', __name__)
+
+
+def _ticket_perm():
+    """Return current user's Tickets permission row, or synthetic _All for superadmin."""
+    if current_user.is_superadmin:
+        class _All:
+            can_view = can_create = can_edit = can_delete = can_assign = True
+        return _All()
+    return UserPermission.query.filter_by(
+        user_id=current_user.id, module='Tickets'
+    ).first()
 
 
 @tickets_bp.route('/dashboard')
@@ -55,7 +67,8 @@ def dashboard():
 def view_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     users = User.query.filter_by(is_active=True).order_by(User.name).all()
-    return render_template('tickets/view_ticket.html', ticket=ticket, users=users)
+    ticket_perm = _ticket_perm()
+    return render_template('tickets/view_ticket.html', ticket=ticket, users=users, ticket_perm=ticket_perm)
 
 @tickets_bp.after_request
 def add_no_cache(response):
@@ -68,9 +81,17 @@ def add_no_cache(response):
 @login_required
 def update_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
+    perm = _ticket_perm()
 
-    fields = ['status', 'priority', 'assigned_to']
-    for field in fields:
+    if not perm or not (perm.can_edit or perm.can_assign):
+        flash('You do not have permission to update tickets.', 'error')
+        return redirect(url_for('tickets.view_ticket', ticket_id=ticket_id))
+
+    editable_fields  = ['status', 'priority'] if (perm and perm.can_edit) else []
+    assignable_fields = ['assigned_to'] if (perm and perm.can_assign) else []
+    allowed_fields = editable_fields + assignable_fields
+
+    for field in allowed_fields:
         new_val = request.form.get(field)
         if new_val is not None:
             old_val = str(getattr(ticket, field) or '')
@@ -98,7 +119,10 @@ def update_ticket(ticket_id):
 def add_comment(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     body = request.form.get('body', '').strip()
-    is_internal = request.form.get('is_internal') == 'on'
+    perm = _ticket_perm()
+
+    # Only allow internal notes for users with can_edit
+    is_internal = (request.form.get('is_internal') == 'on') and bool(perm and perm.can_edit)
 
     if not body:
         flash('Comment cannot be empty.', 'error')

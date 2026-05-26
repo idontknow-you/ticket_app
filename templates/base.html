@@ -92,6 +92,14 @@
               Users
             </a>
           {% endif %}
+
+          {% set settings_perm = current_user.permissions | selectattr('module', 'equalto', 'Settings') | first %}
+          {% if settings_perm and settings_perm.can_view %}
+            <a href="{{ url_for('admin.settings') }}"
+               class="text-base text-gray-500 hover:text-gray-900 hover:underline transition">
+              Settings
+            </a>
+          {% endif %}
         {% endif %}
 
         {% if current_user.is_superadmin %}

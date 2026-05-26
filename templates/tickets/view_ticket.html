@@ -97,7 +97,7 @@
                   class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition-all text-gray-500 hover:text-gray-800">
             Public
           </button>
-          {% if current_user.is_superadmin %}
+          {% if ticket_perm and ticket_perm.can_edit %}
           <button onclick="switchTab('internal')" id="tab-internal"
                   class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition-all text-gray-500 hover:text-gray-800">
             Internal Notes
@@ -109,7 +109,7 @@
         <div class="space-y-4 mb-6" id="comment-list">
           {% if ticket.comments %}
             {% for comment in ticket.comments | sort(attribute='created_at') %}
-            {% if not comment.is_internal or current_user.is_superadmin %}
+            {% if not comment.is_internal or (ticket_perm and ticket_perm.can_edit) %}
             <div class="comment-item {{ 'internal-comment' if comment.is_internal else 'public-comment' }}
                         rounded-xl p-4 border
                         {{ 'bg-amber-50 border-amber-100' if comment.is_internal else 'bg-gray-50 border-gray-100' }}">
@@ -147,9 +147,9 @@
           ></textarea>
 
           <div class="flex items-center justify-between mt-3">
-            {% if current_user.is_superadmin %}
+            {% if ticket_perm and ticket_perm.can_edit %}
             <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" name="is_internal" value="1"
+              <input type="checkbox" name="is_internal" value="on"
                      class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
               <span class="text-sm text-gray-600">Internal note</span>
             </label>
@@ -225,12 +225,13 @@
         </dl>
       </div>
 
-      {# ── Update form (superadmin only) ── #}
-      {% if current_user.is_superadmin %}
+      {# ── Update form ── #}
+      {% if ticket_perm and (ticket_perm.can_edit or ticket_perm.can_assign) %}
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Update Ticket</h2>
         <form method="POST" action="{{ url_for('tickets.update_ticket', ticket_id=ticket.id) }}" class="space-y-4">
 
+          {% if ticket_perm.can_edit %}
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1.5">Status</label>
             <select name="status"
@@ -252,7 +253,9 @@
               <option value="high"   {% if ticket.priority == 'high' %}selected{% endif %}>High</option>
             </select>
           </div>
+          {% endif %}
 
+          {% if ticket_perm.can_assign %}
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1.5">Assigned To</label>
             <select name="assigned_to"
@@ -266,6 +269,7 @@
               {% endfor %}
             </select>
           </div>
+          {% endif %}
 
           <button type="submit"
                   class="w-full bg-indigo-900 hover:bg-indigo-700 text-white text-sm font-medium
