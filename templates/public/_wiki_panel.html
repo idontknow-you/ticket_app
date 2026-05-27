@@ -36,8 +36,6 @@
             class="wiki-item w-full text-left px-6 py-4 hover:bg-gray-50 transition group"
             data-title="{{ page.title | lower }}"
             data-slug="{{ page.slug }}"
-            data-body="{{ page.body | e }}"
-            data-children='{{ page.children | selectattr("is_published") | list | tojson | e }}'
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
@@ -75,6 +73,12 @@
       <div class="px-6 py-5 max-h-[520px] overflow-y-auto">
         <h3 id="wiki-reader-title" class="text-base font-semibold text-gray-900 font-serif mb-3"></h3>
         <div id="wiki-reader-body" class="text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none"></div>
+
+        <div id="wiki-attachments" class="hidden mt-5">
+          <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Attachments</p>
+          <ul id="wiki-attachments-list" class="space-y-1"></ul>
+        </div>
+
         <div id="wiki-children" class="mt-5 hidden">
           <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Related articles</p>
           <div id="wiki-children-list" class="space-y-1"></div>
@@ -84,3 +88,26 @@
 
   </div>
 </div>
+
+{# Single JSON block — tojson on a real Python list, zero escaping issues #}
+<script id="wiki-data" type="application/json">
+{{ wiki_pages | map(attribute='slug') | list | tojson }}
+</script>
+
+{% for page in wiki_pages %}
+<script id="wiki-page-{{ page.slug }}" type="application/json">
+{
+  "slug":  {{ page.slug  | tojson }},
+  "title": {{ page.title | tojson }},
+  "body":  {{ page.body  | tojson }},
+  "attachments": {{ page.attachments.all() | map(attribute='original_name') | list | tojson }},
+  "filenames":   {{ page.attachments.all() | map(attribute='filename')      | list | tojson }},
+  "children": [
+    {% for child in page.children | selectattr("is_published") | list %}
+      { "slug": {{ child.slug | tojson }}, "title": {{ child.title | tojson }}, "body": {{ child.body | tojson }} }
+      {% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+</script>
+{% endfor %}

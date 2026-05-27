@@ -3,10 +3,10 @@ import uuid
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from extensions import db
 from models.ticket import Ticket, TicketAttachment
-from models.settings import Setting
 from services.ticket_service import generate_ticket_number
 from services.wiki_service import get_published_top_level_pages
 from services.email_service import send_ticket_confirmation
+from services.form_service import get_form_config, CONFIGURABLE_FIELDS
 
 public_bp = Blueprint('public', __name__)
 
@@ -23,9 +23,6 @@ TYPES = ['Issue', 'Bug', 'Other']
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-
-# Fields that are configurable (name/email are always required, never toggled)
-CONFIGURABLE_FIELDS = ['subject', 'description', 'department', 'module', 'type', 'attachments']
 
 
 def allowed_file(filename):
@@ -58,43 +55,6 @@ def get_wiki_pages():
     return get_published_top_level_pages()
 
 
-def get_form_config():
-    """
-    Read per-field visibility and required flags from the Setting EAV table.
-    Returns a dict like:
-      {
-        'subject':     {'visible': True,  'required': True},
-        'description': {'visible': True,  'required': True},
-        'department':  {'visible': False, 'required': False},
-        'module':      {'visible': True,  'required': True},
-        'type':        {'visible': True,  'required': True},
-        'attachments': {'visible': True,  'required': False},
-      }
-    Falls back to sensible defaults if no setting row exists yet.
-    """
-    defaults = {
-        'subject':     {'visible': True,  'required': True},
-        'description': {'visible': True,  'required': True},
-        'department':  {'visible': False, 'required': False},
-        'module':      {'visible': True,  'required': True},
-        'type':        {'visible': True,  'required': True},
-        'attachments': {'visible': True,  'required': False},
-    }
-
-    config = {}
-    for field in CONFIGURABLE_FIELDS:
-        vis_row = Setting.query.filter_by(key=f'form_field_{field}_visible').first()
-        req_row = Setting.query.filter_by(key=f'form_field_{field}_required').first()
-
-        visible  = (vis_row.value == 'true') if vis_row else defaults[field]['visible']
-        required = (req_row.value == 'true') if req_row else defaults[field]['required']
-
-        # If a field is hidden it can never be required
-        config[field] = {'visible': visible, 'required': required and visible}
-
-    return config
-
-
 @public_bp.route('/', methods=['GET', 'POST'])
 def submit():
     form_config = get_form_config()
@@ -111,13 +71,11 @@ def submit():
 
         errors = []
 
-        # Always-required fields
         if not submitter_name:
             errors.append('Your name is required.')
         if not submitter_email or '@' not in submitter_email:
             errors.append('A valid email address is required.')
 
-        # Conditionally-required fields — only validate if visible AND required
         if form_config['subject']['visible'] and form_config['subject']['required'] and not subject:
             errors.append('Subject is required.')
         if form_config['description']['visible'] and form_config['description']['required'] and not description:
@@ -129,7 +87,6 @@ def submit():
         if form_config['department']['visible'] and form_config['department']['required'] and not department:
             errors.append('Department is required.')
 
-        # File validation (only if attachments field is visible)
         valid_files = []
         if form_config['attachments']['visible']:
             for f in files:
@@ -154,7 +111,6 @@ def submit():
                                    form_config=form_config,
                                    wiki_pages=get_wiki_pages())
 
-        # Use fallback values for hidden fields so the Ticket row is always valid
         ticket_number = generate_ticket_number(ticket_type or 'Other')
         ticket = Ticket(
             ticket_number=ticket_number,

@@ -48,7 +48,7 @@
 
             <div class="px-8 py-8 space-y-6">
 
-              <!-- Your Details — always shown -->
+              <!-- Your Details -->
               <div>
                 <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Your Details</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -73,7 +73,6 @@
                 </div>
               </div>
 
-              {# Only render the Issue Details section if at least one configurable field is visible #}
               {% if form_config.subject.visible or form_config.description.visible
                  or form_config.department.visible or form_config.module.visible
                  or form_config.type.visible %}
@@ -84,7 +83,6 @@
                 <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Issue Details</h2>
                 <div class="space-y-4">
 
-                  {# Row: Department + Module + Type — only render grid if any of the three are visible #}
                   {% if form_config.department.visible or form_config.module.visible or form_config.type.visible %}
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
@@ -193,7 +191,6 @@
               {% if form_config.attachments.visible %}
               <hr class="border-gray-100">
 
-              <!-- Attachments -->
               <div>
                 <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
                   Attachments
@@ -290,25 +287,65 @@
   const readerBody   = document.getElementById('wiki-reader-body');
   const childrenWrap = document.getElementById('wiki-children');
   const childrenList = document.getElementById('wiki-children-list');
+  const attachWrap   = document.getElementById('wiki-attachments');
+  const attachList   = document.getElementById('wiki-attachments-list');
 
-  function showArticle(title, body, childrenData) {
+  // Load all wiki data from JSON script blocks — no HTML attribute escaping involved at all
+  const wikiMap = {};
+  document.querySelectorAll('script[id^="wiki-page-"]').forEach(el => {
+    try {
+      const page = JSON.parse(el.textContent);
+      // Zip attachments + filenames back into objects
+      page.attachments = (page.attachments || []).map((name, i) => ({
+        original_name: name,
+        filename: (page.filenames || [])[i] || ''
+      }));
+      wikiMap[page.slug] = page;
+    } catch(e) {
+      console.error('Failed to parse wiki page data:', el.id, e);
+    }
+  });
+
+  function showArticle(title, body, children, attachments) {
     readerTitle.textContent = title;
+
     if (/<[a-z][\s\S]*>/i.test(body)) {
       readerBody.innerHTML = body;
     } else {
       readerBody.innerHTML = body.split('\n').filter(l => l.trim()).map(l => `<p>${l}</p>`).join('');
     }
 
+    attachList.innerHTML = '';
+    if (attachments.length) {
+      attachWrap.classList.remove('hidden');
+      attachments.forEach(att => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center gap-2';
+        li.innerHTML = `
+          <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+          </svg>
+          <a href="/static/wiki_uploads/${att.filename}"
+             target="_blank"
+             class="text-xs text-indigo-600 hover:underline truncate">
+            ${att.original_name}
+          </a>`;
+        attachList.appendChild(li);
+      });
+    } else {
+      attachWrap.classList.add('hidden');
+    }
+
     childrenList.innerHTML = '';
-    const published = (childrenData || []).filter(c => c.is_published);
-    if (published.length) {
+    if (children.length) {
       childrenWrap.classList.remove('hidden');
-      published.forEach(child => {
+      children.forEach(child => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 text-sm text-indigo-600 hover:text-indigo-700 transition flex items-center gap-2';
         btn.innerHTML = `<svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>${child.title}`;
-        btn.addEventListener('click', () => showArticle(child.title, child.body, []));
+        btn.addEventListener('click', () => showArticle(child.title, child.body, [], []));
         childrenList.appendChild(btn);
       });
     } else {
@@ -321,9 +358,10 @@
 
   document.querySelectorAll('.wiki-item').forEach(btn => {
     btn.addEventListener('click', () => {
-      const children = JSON.parse(btn.dataset.children || '[]');
-      const title = btn.querySelector('p').textContent.trim();
-      showArticle(title, btn.dataset.body, children);
+      const slug = btn.dataset.slug;
+      const page = wikiMap[slug];
+      if (!page) return;
+      showArticle(page.title, page.body, page.children || [], page.attachments || []);
     });
   });
 
@@ -335,7 +373,9 @@
   document.getElementById('wiki-search').addEventListener('input', function () {
     const q = this.value.toLowerCase().trim();
     document.querySelectorAll('.wiki-item').forEach(btn => {
-      const match = btn.dataset.title.includes(q) || btn.dataset.body.toLowerCase().includes(q);
+      const page = wikiMap[btn.dataset.slug];
+      const bodyText = page ? page.body.replace(/<[^>]+>/g, '').toLowerCase() : '';
+      const match = btn.dataset.title.includes(q) || bodyText.includes(q);
       btn.style.display = match ? '' : 'none';
     });
   });

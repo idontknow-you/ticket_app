@@ -22,7 +22,6 @@ wiki_bp = Blueprint('wiki', __name__, url_prefix='/wiki')
 
 
 def _wiki_perm():
-    """Return current user's Wiki permission, or synthetic _All for superadmin."""
     if current_user.is_superadmin:
         class _All:
             can_view = can_create = can_edit = can_delete = True
@@ -67,15 +66,22 @@ def create():
                 is_published=is_published,
                 created_by=current_user.id,
             )
-
-            # Save any uploaded attachments now that we have a page.id
+            # create_page already committed, so page.id is available.
+            # Save attachments in the same new transaction and commit once.
+            attachment_errors = []
             uploaded_files = request.files.getlist('attachments')
             for f in uploaded_files:
                 if f and f.filename:
                     try:
                         save_attachment(f, page.id, current_user.id)
                     except ValueError as e:
-                        flash(str(e), 'error')
+                        attachment_errors.append(str(e))
+
+            from extensions import db
+            db.session.commit()   # commit all attachment rows together
+
+            for err in attachment_errors:
+                flash(err, 'error')
 
             flash(f'Page "{page.title}" created.', 'success')
             return redirect(url_for('wiki.index'))
@@ -113,15 +119,22 @@ def edit(page_id):
                 is_published=is_published,
                 updated_by=current_user.id,
             )
-
-            # Save any newly uploaded attachments
+            # update_page already committed the page + history snapshot.
+            # Now save any newly uploaded attachments and commit them.
+            attachment_errors = []
             uploaded_files = request.files.getlist('attachments')
             for f in uploaded_files:
                 if f and f.filename:
                     try:
                         save_attachment(f, page.id, current_user.id)
                     except ValueError as e:
-                        flash(str(e), 'error')
+                        attachment_errors.append(str(e))
+
+            from extensions import db
+            db.session.commit()   # commit all attachment rows together
+
+            for err in attachment_errors:
+                flash(err, 'error')
 
             flash(f'Page "{page.title}" updated.', 'success')
             return redirect(url_for('wiki.index'))
@@ -176,7 +189,6 @@ def delete(page_id):
 def history(page_id):
     page      = get_page_or_404(page_id)
     snapshots = get_page_history(page_id)
-    # Load ALL users (including deactivated) so history editor names resolve
     editors   = {u.id: u for u in User.query.all()}
     return render_template('wiki/history.html',
                            page=page, snapshots=snapshots, editors=editors)

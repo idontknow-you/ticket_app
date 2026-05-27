@@ -18,33 +18,81 @@
     </div>
 
     {% if snapshots %}
+      {# ── Current version (top) ───────────────────────────────────────── #}
+      <div class="mb-4 bg-indigo-50 border border-indigo-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 flex items-center justify-between border-b border-indigo-100">
+          <div class="flex items-center gap-3">
+            <span class="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center">
+              ✓
+            </span>
+            <div>
+              <p class="text-sm font-medium text-indigo-800">Current version</p>
+              <p class="text-xs text-indigo-400">
+                Last edited
+                {% if page.updated_by and page.updated_by in editors %}
+                  by {{ editors[page.updated_by].name }}
+                {% endif %}
+              </p>
+            </div>
+          </div>
+          <span class="text-xs font-medium text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">Live</span>
+        </div>
+        <div class="px-6 py-4 prose prose-sm max-w-none text-gray-700 max-h-48 overflow-y-auto">
+          {{ page.body | safe }}
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 mb-4">
+        <div class="flex-1 h-px bg-gray-200"></div>
+        <span class="text-xs text-gray-400 uppercase tracking-widest">Previous versions</span>
+        <div class="flex-1 h-px bg-gray-200"></div>
+      </div>
+
+      {# ── Snapshot list (newest first = most recent previous version) ──── #}
       <div class="space-y-4">
         {% for snap in snapshots %}
           <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 flex items-center justify-between border-b border-gray-100">
               <div class="flex items-center gap-3">
-                <span class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold flex items-center justify-center">
-                  {{ loop.index }}
+                <span class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold flex items-center justify-center">
+                  {{ snapshots | length - loop.index0 }}
                 </span>
                 <div>
                   <p class="text-sm font-medium text-gray-800">
-                    {{ editors[snap.edited_by].name if snap.edited_by in editors else 'Unknown' }}
+                    {% if snap.edited_by and snap.edited_by in editors %}
+                      Saved by {{ editors[snap.edited_by].name }}
+                    {% else %}
+                      Unknown editor
+                    {% endif %}
                   </p>
                   <p class="text-xs text-gray-400">{{ snap.edited_at.strftime('%d %b %Y, %H:%M') }}</p>
                 </div>
               </div>
-              <span class="text-xs text-gray-400 font-mono">snapshot #{{ snapshots | length - loop.index0 }}</span>
+              <span class="text-xs text-gray-400">
+                Version {{ snapshots | length - loop.index0 }}
+              </span>
             </div>
+
+            {# Body snapshot — render as HTML (Quill output) with a toggle #}
             <div class="px-6 py-4">
-              <pre class="text-xs text-gray-600 whitespace-pre-wrap font-mono leading-relaxed max-h-48 overflow-y-auto">{{ snap.body_snapshot }}</pre>
+              <div id="snap-body-{{ snap.id }}"
+                   class="prose prose-sm max-w-none text-gray-600 max-h-40 overflow-y-auto">
+                {{ snap.body_snapshot | safe }}
+              </div>
             </div>
+
           </div>
         {% endfor %}
       </div>
 
     {% else %}
       <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-16 text-center">
-        <p class="text-gray-400 text-sm">No edit history yet. History is recorded on each save.</p>
+        <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-gray-400 text-sm">No edit history yet.</p>
+        <p class="text-gray-300 text-xs mt-1">A snapshot is saved each time the page is updated.</p>
       </div>
     {% endif %}
 

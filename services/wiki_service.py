@@ -8,7 +8,6 @@ import os, uuid
 from extensions import db
 from models.wiki import WikiPage, WikiPageHistory, generate_slug, WikiAttachment
 from werkzeug.utils import secure_filename
-from extensions import db
 
 # ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -84,7 +83,7 @@ def create_page(title, body, parent_id, is_published, created_by):
     Raises ValueError if title or body are blank.
     """
     title = title.strip()
-    body = body.strip()
+    body  = body.strip()
     if not title or not body:
         raise ValueError("Title and body are required.")
 
@@ -106,19 +105,28 @@ def update_page(page, title, body, parent_id, is_published, updated_by):
     """
     Update an existing WikiPage.
     Saves a history snapshot of the *previous* body before writing.
+
+    The snapshot's edited_by records who made the PREVIOUS edit
+    (page.updated_by), so the history reads as "this is what the page
+    looked like after X edited it."  If updated_by is not yet set
+    (first edit ever), we fall back to the page creator.
+
     Returns the updated WikiPage instance.
     Raises ValueError if title or body are blank.
     """
     title = title.strip()
-    body = body.strip()
+    body  = body.strip()
     if not title or not body:
         raise ValueError("Title and body are required.")
 
-    # Snapshot the current body before overwriting
+    # Snapshot the current (pre-edit) body.
+    # edited_by = whoever last wrote this body (page.updated_by if set,
+    # else the original creator).
+    snapshot_author = getattr(page, 'updated_by', None) or page.created_by
     snapshot = WikiPageHistory(
-        page_id=page.id,
-        body_snapshot=page.body,
-        edited_by=updated_by,
+        page_id       = page.id,
+        body_snapshot = page.body,
+        edited_by     = snapshot_author,
     )
     db.session.add(snapshot)
 
@@ -126,11 +134,11 @@ def update_page(page, title, body, parent_id, is_published, updated_by):
     if title != page.title:
         page.slug = unique_slug(title, exclude_id=page.id)
 
-    page.title = title
-    page.body = body
-    page.parent_id = int(parent_id) if parent_id else None
+    page.title        = title
+    page.body         = body
+    page.parent_id    = int(parent_id) if parent_id else None
     page.is_published = is_published
-    page.updated_by = updated_by
+    page.updated_by   = updated_by   # record who just saved
 
     db.session.commit()
     return page
@@ -148,7 +156,7 @@ def toggle_publish(page):
 
 def delete_page(page):
     """
-    Hard-delete *page*.  Any child pages are re-parented to None (top-level)
+    Hard-delete *page*. Any child pages are re-parented to None (top-level)
     so they are not orphaned.
     """
     for child in page.children:
@@ -156,20 +164,28 @@ def delete_page(page):
     db.session.delete(page)
     db.session.commit()
 
+
+# ── Attachment helpers ────────────────────────────────────────────────────────
+
 WIKI_UPLOAD_FOLDER = os.path.join('static', 'wiki_uploads')
 ALLOWED_EXTENSIONS = {
     'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
     'txt', 'md', 'csv', 'zip', 'png', 'jpg', 'jpeg', 'gif', 'webp'
 }
 
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def save_attachment(file, page_id, uploader_id):
-    """Persist an uploaded file and return the new WikiAttachment (not yet committed)."""
+    """
+    Persist an uploaded file to disk and add the WikiAttachment row to
+    the session.  Caller is responsible for db.session.commit().
+    Raises ValueError if the file type is not in ALLOWED_EXTENSIONS.
+    """
     if not allowed_file(file.filename):
-        raise ValueError(f"File type not allowed.")
+        raise ValueError("File type not allowed.")
 
     original_name = secure_filename(file.filename)
     ext           = original_name.rsplit('.', 1)[1].lower()

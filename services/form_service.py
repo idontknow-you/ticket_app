@@ -7,11 +7,8 @@ Imported by both routes/public.py and routes/admin.py to avoid circular imports.
 
 from models.settings import Setting
 
-# Fields that admins can toggle visibility/required on.
-# name and email are always on and are NOT in this list.
 CONFIGURABLE_FIELDS = ['subject', 'description', 'department', 'module', 'type', 'attachments']
 
-# Fallback defaults used when no Setting row exists yet (fresh install)
 _DEFAULTS = {
     'subject':     {'visible': True,  'required': True},
     'description': {'visible': True,  'required': True},
@@ -22,21 +19,27 @@ _DEFAULTS = {
 }
 
 
+class FieldConfig:
+    """
+    Wraps a field's visible/required flags as object attributes so that
+    Jinja2 dot notation (form_config.attachments.visible) works correctly.
+    Plain nested dicts fail silently with dot access in Jinja2 templates.
+    """
+    def __init__(self, visible, required):
+        self.visible  = visible
+        self.required = required and visible  # hidden field is never required
+
+
 def get_form_config() -> dict:
     """
     Read per-field visibility and required flags from the Setting EAV table.
-
-    Returns a dict keyed by field name:
+    Returns a dict of FieldConfig objects keyed by field name, e.g.:
       {
-        'subject':     {'visible': True,  'required': True},
-        'description': {'visible': True,  'required': True},
-        'department':  {'visible': False, 'required': False},
-        'module':      {'visible': True,  'required': True},
-        'type':        {'visible': True,  'required': True},
-        'attachments': {'visible': True,  'required': False},
+        'subject':     FieldConfig(visible=True,  required=True),
+        'attachments': FieldConfig(visible=True,  required=False),
+        ...
       }
-
-    A hidden field is never required, even if the DB row says otherwise.
+    Falls back to _DEFAULTS if no DB row exists yet.
     """
     config = {}
     for field in CONFIGURABLE_FIELDS:
@@ -46,9 +49,6 @@ def get_form_config() -> dict:
         visible  = (vis_row.value == 'true') if vis_row else _DEFAULTS[field]['visible']
         required = (req_row.value == 'true') if req_row else _DEFAULTS[field]['required']
 
-        config[field] = {
-            'visible':  visible,
-            'required': required and visible,  # hidden → never required
-        }
+        config[field] = FieldConfig(visible=visible, required=required)
 
     return config
