@@ -1,11 +1,11 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
-from models.permission import UserPermission
-from models.user import User
-from decorators import require_permission
+from decorators import superadmin_required
+from models import FormConfig
 from services.wiki_service import (
     get_all_top_level_pages,
     get_page_or_404,
+    get_page_by_slug,
     get_parent_candidates,
     get_page_history,
     create_page,
@@ -13,182 +13,209 @@ from services.wiki_service import (
     toggle_publish,
     delete_page,
     save_attachment,
+    save_cover_image,
     delete_attachment,
     get_attachment_or_404,
+    like_page,
+    add_comment,
+    delete_comment,
 )
 
-
-wiki_bp = Blueprint('wiki', __name__, url_prefix='/wiki')
-
-
-def _wiki_perm():
-    if current_user.is_superadmin:
-        class _All:
-            can_view = can_create = can_edit = can_delete = True
-        return _All()
-    return UserPermission.query.filter_by(
-        user_id=current_user.id, module='Wiki'
-    ).first()
+wiki_bp = Blueprint("wiki", __name__, url_prefix="/wiki")
 
 
-@wiki_bp.context_processor
-def wiki_permissions():
-    if not current_user.is_authenticated:
-        return dict(wiki_perm=None)
-    return dict(wiki_perm=_wiki_perm())
+def _get_forms():
+    return FormConfig.query.filter_by(is_deleted=False, is_published=True).order_by(FormConfig.order).all()
 
 
-@wiki_bp.route('/')
+@wiki_bp.route("/")
 @login_required
-@require_permission('Wiki', 'can_view')
 def index():
     pages = get_all_top_level_pages()
-    return render_template('wiki/index.html', pages=pages)
+    forms = _get_forms()
+    return render_template("wiki/index.html", pages=pages, forms=forms)
 
 
-@wiki_bp.route('/create', methods=['GET', 'POST'])
+@wiki_bp.route("/article/<slug>")
+def article(slug):
+    page = get_page_by_slug(slug)
+    return render_template("wiki/article.html", page=page)
+
+
+@wiki_bp.route("/article/<slug>/like", methods=["POST"])
+def like(slug):
+    page = get_page_by_slug(slug)
+    total = like_page(page)
+    return jsonify({"likes": total})
+
+
+@wiki_bp.route("/article/<slug>/comment", methods=["POST"])
+def comment(slug):
+    page = get_page_by_slug(slug)
+    data = request.get_json() or {}
+    author = data.get("author", "Anonymous").strip() or "Anonymous"
+    text   = data.get("text", "").strip()
+    if not text:
+        return jsonify({"error": "Comment cannot be empty."}), 400
+    comments = add_comment(page, author, text)
+    return jsonify({"comments": comments})
+
+
+@wiki_bp.route("/article/<slug>/comment/<int:comment_index>/delete", methods=["POST"])
 @login_required
-@require_permission('Wiki', 'can_create')
+@superadmin_required
+def delete_comment_route(slug, comment_index):
+    page = get_page_by_slug(slug)
+    delete_comment(page, comment_index)
+    return jsonify({"success": True})
+
+
+@wiki_bp.route("/create", methods=["GET", "POST"])
+@login_required
+@superadmin_required
 def create():
     parent_pages = get_parent_candidates()
-
-    if request.method == 'POST':
-        title        = request.form.get('title', '').strip()
-        body         = request.form.get('body_html', '').strip()
-        parent_id    = request.form.get('parent_id') or None
-        is_published = bool(request.form.get('is_published'))
-
+    forms = _get_forms()
+    if request.method == "POST":
+        title          = request.form.get("title", "").strip()
+        body           = request.form.get("body_html", "").strip()
+        description    = request.form.get("description", "").strip()
+        parent_id      = request.form.get("parent_id") or None
+        form_config_id = request.form.get("form_config_id") or None
+        if form_config_id:
+            form_config_id = int(form_config_id)
+        is_published = bool(request.form.get("is_published"))
+        cover_image  = None
+        cover_file   = request.files.get("cover_image")
+        if cover_file and cover_file.filename:
+            try:
+                cover_image = save_cover_image(cover_file)
+            except ValueError as e:
+                flash(str(e), "error")
+                return render_template("wiki/form.html", page=None,
+                                       parent_pages=parent_pages, forms=forms,
+                                       form=request.form, action="create")
         try:
-            page = create_page(
-                title=title,
-                body=body,
-                parent_id=parent_id,
-                is_published=is_published,
-                created_by=current_user.id,
-            )
-            # create_page already committed, so page.id is available.
-            # Save attachments in the same new transaction and commit once.
+            page = create_page(title=title, body=body, description=description,
+                               cover_image=cover_image, parent_id=parent_id,
+                               is_published=is_published, created_by=current_user.id)
+            page.form_config_id = form_config_id
             attachment_errors = []
-            uploaded_files = request.files.getlist('attachments')
-            for f in uploaded_files:
+            for f in request.files.getlist("attachments"):
                 if f and f.filename:
                     try:
                         save_attachment(f, page.id, current_user.id)
                     except ValueError as e:
                         attachment_errors.append(str(e))
-
             from extensions import db
-            db.session.commit()   # commit all attachment rows together
-
+            db.session.commit()
             for err in attachment_errors:
-                flash(err, 'error')
-
-            flash(f'Page "{page.title}" created.', 'success')
-            return redirect(url_for('wiki.index'))
-
+                flash(err, "error")
+            flash(f'Page "{page.title}" created.', "success")
+            return redirect(url_for("wiki.index"))
         except ValueError as e:
-            flash(str(e), 'error')
-            return render_template('wiki/form.html', page=None,
-                                   parent_pages=parent_pages,
-                                   form=request.form, action='create')
+            flash(str(e), "error")
+            return render_template("wiki/form.html", page=None,
+                                   parent_pages=parent_pages, forms=forms,
+                                   form=request.form, action="create")
+    return render_template("wiki/form.html", page=None,
+                           parent_pages=parent_pages, forms=forms,
+                           form={}, action="create")
 
-    return render_template('wiki/form.html', page=None,
-                           parent_pages=parent_pages,
-                           form={}, action='create')
 
-
-@wiki_bp.route('/<int:page_id>/edit', methods=['GET', 'POST'])
+@wiki_bp.route("/<int:page_id>/edit", methods=["GET", "POST"])
 @login_required
-@require_permission('Wiki', 'can_edit')
+@superadmin_required
 def edit(page_id):
     page         = get_page_or_404(page_id)
     parent_pages = get_parent_candidates(exclude_id=page_id)
-
-    if request.method == 'POST':
-        title        = request.form.get('title', '').strip()
-        body         = request.form.get('body_html', '').strip()
-        parent_id    = request.form.get('parent_id') or None
-        is_published = bool(request.form.get('is_published'))
-
+    forms        = _get_forms()
+    if request.method == "POST":
+        title          = request.form.get("title", "").strip()
+        body           = request.form.get("body_html", "").strip()
+        description    = request.form.get("description", "").strip()
+        parent_id      = request.form.get("parent_id") or None
+        form_config_id = request.form.get("form_config_id") or None
+        if form_config_id:
+            form_config_id = int(form_config_id)
+        is_published = bool(request.form.get("is_published"))
+        cover_image  = None
+        cover_file   = request.files.get("cover_image")
+        if cover_file and cover_file.filename:
+            try:
+                cover_image = save_cover_image(cover_file)
+            except ValueError as e:
+                flash(str(e), "error")
+                return render_template("wiki/form.html", page=page,
+                                       parent_pages=parent_pages, forms=forms,
+                                       form=request.form, action="edit")
         try:
-            update_page(
-                page=page,
-                title=title,
-                body=body,
-                parent_id=parent_id,
-                is_published=is_published,
-                updated_by=current_user.id,
-            )
-            # update_page already committed the page + history snapshot.
-            # Now save any newly uploaded attachments and commit them.
+            update_page(page=page, title=title, body=body, description=description,
+                        cover_image=cover_image, parent_id=parent_id,
+                        is_published=is_published, updated_by=current_user.id)
+            page.form_config_id = form_config_id
             attachment_errors = []
-            uploaded_files = request.files.getlist('attachments')
-            for f in uploaded_files:
+            for f in request.files.getlist("attachments"):
                 if f and f.filename:
                     try:
                         save_attachment(f, page.id, current_user.id)
                     except ValueError as e:
                         attachment_errors.append(str(e))
-
             from extensions import db
-            db.session.commit()   # commit all attachment rows together
-
+            db.session.commit()
             for err in attachment_errors:
-                flash(err, 'error')
-
-            flash(f'Page "{page.title}" updated.', 'success')
-            return redirect(url_for('wiki.index'))
-
+                flash(err, "error")
+            flash(f'Page "{page.title}" updated.', "success")
+            return redirect(url_for("wiki.index"))
         except ValueError as e:
-            flash(str(e), 'error')
-            return render_template('wiki/form.html', page=page,
-                                   parent_pages=parent_pages,
-                                   form=request.form, action='edit')
+            flash(str(e), "error")
+            return render_template("wiki/form.html", page=page,
+                                   parent_pages=parent_pages, forms=forms,
+                                   form=request.form, action="edit")
+    return render_template("wiki/form.html", page=page,
+                           parent_pages=parent_pages, forms=forms,
+                           form={}, action="edit")
 
-    return render_template('wiki/form.html', page=page,
-                           parent_pages=parent_pages,
-                           form={}, action='edit')
 
-
-@wiki_bp.route('/attachment/<int:attachment_id>/delete', methods=['POST'])
+@wiki_bp.route("/attachment/<int:attachment_id>/delete", methods=["POST"])
 @login_required
-@require_permission('Wiki', 'can_delete')
+@superadmin_required
 def delete_wiki_attachment(attachment_id):
     attachment = get_attachment_or_404(attachment_id)
     page_id    = attachment.page_id
     delete_attachment(attachment)
-    flash('Attachment deleted.', 'success')
-    return redirect(url_for('wiki.edit', page_id=page_id))
+    flash("Attachment deleted.", "success")
+    return redirect(url_for("wiki.edit", page_id=page_id))
 
 
-@wiki_bp.route('/<int:page_id>/toggle-publish', methods=['POST'])
+@wiki_bp.route("/<int:page_id>/toggle-publish", methods=["POST"])
 @login_required
-@require_permission('Wiki', 'can_edit')
+@superadmin_required
 def toggle_publish_route(page_id):
     page      = get_page_or_404(page_id)
     published = toggle_publish(page)
-    state     = 'published' if published else 'unpublished'
-    flash(f'"{page.title}" {state}.', 'success')
-    return redirect(url_for('wiki.index'))
+    state     = "published" if published else "unpublished"
+    flash(f'"{page.title}" {state}.', "success")
+    return redirect(url_for("wiki.index"))
 
 
-@wiki_bp.route('/<int:page_id>/delete', methods=['POST'])
+@wiki_bp.route("/<int:page_id>/delete", methods=["POST"])
 @login_required
-@require_permission('Wiki', 'can_delete')
+@superadmin_required
 def delete(page_id):
     page  = get_page_or_404(page_id)
     title = page.title
     delete_page(page)
-    flash(f'Page "{title}" deleted.', 'success')
-    return redirect(url_for('wiki.index'))
+    flash(f'Page "{title}" deleted.', "success")
+    return redirect(url_for("wiki.index"))
 
 
-@wiki_bp.route('/<int:page_id>/history')
+@wiki_bp.route("/<int:page_id>/history")
 @login_required
-@require_permission('Wiki', 'can_view')
 def history(page_id):
+    from models import User
     page      = get_page_or_404(page_id)
     snapshots = get_page_history(page_id)
     editors   = {u.id: u for u in User.query.all()}
-    return render_template('wiki/history.html',
+    return render_template("wiki/history.html",
                            page=page, snapshots=snapshots, editors=editors)

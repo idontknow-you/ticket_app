@@ -1,157 +1,18 @@
 {% extends "base.html" %}
-
-{% block title %}Ticket Submitted — {{ ticket.ticket_number }}{% endblock %}
+{% block title %}Submitted — {{ form.name }}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen py-10 px-4 sm:px-6 lg:px-8" style="background:#e7f1f3;">
-  <div class="max-w-7xl mx-auto">
-
-    <!-- Two-column layout -->
-    <div class="flex gap-6 items-start">
-
-      <!-- LEFT: Success content -->
-      <div class="flex-[3] min-w-0">
-        <div class="bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden">
-          <div class="px-8 py-10">
-
-            <!-- Success icon -->
-            <div class="mx-auto mb-6 flex items-center justify-center w-20 h-20 rounded-full bg-green-100">
-              <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-
-            <h1 class="text-2xl font-bold text-gray-900 mb-2 text-center font-serif">Your ticket has been submitted!</h1>
-            <p class="text-gray-500 text-sm mb-8 text-center">
-              We've received your request and a confirmation has been sent to
-              <strong class="text-gray-700">{{ ticket.submitter_email }}</strong>.
-              Our team will review it shortly.
-            </p>
-
-            <!-- Ticket summary card -->
-            <div class="bg-white border border-gray-200 rounded-2xl shadow-sm text-left overflow-hidden mb-8">
-              <div class="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">Ticket Reference</span>
-                <span class="font-mono text-sm font-bold text-indigo-600 tracking-wide">{{ ticket.ticket_number }}</span>
-              </div>
-              <div class="px-6 py-5 space-y-3">
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-500">Subject</span>
-                  <span class="text-gray-800 font-medium text-right max-w-[60%]">{{ ticket.subject }}</span>
-                </div>
-                {% if ticket.module %}
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-500">Module</span>
-                  <span class="text-gray-800">{{ ticket.module }}</span>
-                </div>
-                {% endif %}
-                {% if ticket.type %}
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-500">Type</span>
-                  <span class="text-gray-800">{{ ticket.type }}</span>
-                </div>
-                {% endif %}
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-500">Status</span>
-                  <span class="inline-flex items-center gap-1.5 text-yellow-700 font-medium">
-                    <span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>
-                    Open
-                  </span>
-                </div>
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-500">Submitted</span>
-                  <span class="text-gray-800">{{ ticket.created_at.strftime('%d %b %Y, %H:%M') }} UTC</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- What's next -->
-            <div class="bg-indigo-50 border border-indigo-100 rounded-xl px-6 py-4 text-sm text-indigo-700 text-left mb-8">
-              <p class="font-semibold mb-1">What happens next?</p>
-              <ul class="space-y-1 text-indigo-600 list-disc list-inside">
-                <li>Our support team will review your ticket.</li>
-                <li>You'll receive updates at <strong>{{ ticket.submitter_email }}</strong>.</li>
-                <li>Keep your ticket number handy: <strong class="font-mono">{{ ticket.ticket_number }}</strong>.</li>
-              </ul>
-            </div>
-
-            <div class="text-center">
-              <a href="{{ url_for('public.submit') }}"
-                class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-indigo-600 transition font-medium">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                </svg>
-                Submit another ticket
-              </a>
-            </div>
-
-          </div>
-        </div>
-      </div>
-
-      {% include 'public/_wiki_panel.html' %}
-
-    </div>
+<div class="max-w-xl mx-auto px-8 py-24 text-center">
+  <div class="w-14 h-14 bg-emerald-50 border border-emerald-200 rounded-full flex items-center justify-center mx-auto mb-6">
+    <svg class="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
   </div>
+  <h1 class="font-serif text-3xl text-ink mb-3">Thank you!</h1>
+  <p class="text-muted">Your <strong class="text-ink">{{ form.name }}</strong> request has been submitted. We'll be in touch soon.</p>
+  <a href="{{ url_for('public.index', form=form.slug) }}"
+     class="inline-block mt-8 text-sm text-ink underline underline-offset-4 hover:text-muted transition">
+    Submit another response
+  </a>
 </div>
-
-<script>
-  // ── Wiki panel ───────────────────────────────────────────────────────
-  const listView     = document.getElementById('wiki-list-view');
-  const readerView   = document.getElementById('wiki-reader-view');
-  const backBtn      = document.getElementById('wiki-back');
-  const readerTitle  = document.getElementById('wiki-reader-title');
-  const readerBody   = document.getElementById('wiki-reader-body');
-  const childrenWrap = document.getElementById('wiki-children');
-  const childrenList = document.getElementById('wiki-children-list');
-
-  function showArticle(title, body, childrenData) {
-    readerTitle.textContent = title;
-    if (/<[a-z][\s\S]*>/i.test(body)) {
-      readerBody.innerHTML = body;
-    } else {
-      readerBody.innerHTML = body.split('\n').filter(l => l.trim()).map(l => `<p>${l}</p>`).join('');
-    }
-
-    childrenList.innerHTML = '';
-    const published = (childrenData || []).filter(c => c.is_published);
-    if (published.length) {
-      childrenWrap.classList.remove('hidden');
-      published.forEach(child => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 text-sm text-indigo-600 hover:text-indigo-700 transition flex items-center gap-2';
-        btn.innerHTML = `<svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>${child.title}`;
-        btn.addEventListener('click', () => showArticle(child.title, child.body, []));
-        childrenList.appendChild(btn);
-      });
-    } else {
-      childrenWrap.classList.add('hidden');
-    }
-
-    listView.classList.add('hidden');
-    readerView.classList.remove('hidden');
-  }
-
-  document.querySelectorAll('.wiki-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const children = JSON.parse(btn.dataset.children || '[]');
-      const title = btn.querySelector('p').textContent.trim();
-      showArticle(title, btn.dataset.body, children);
-    });
-  });
-
-  backBtn.addEventListener('click', () => {
-    readerView.classList.add('hidden');
-    listView.classList.remove('hidden');
-  });
-
-  document.getElementById('wiki-search').addEventListener('input', function () {
-    const q = this.value.toLowerCase().trim();
-    document.querySelectorAll('.wiki-item').forEach(btn => {
-      const match = btn.dataset.title.includes(q) || btn.dataset.body.toLowerCase().includes(q);
-      btn.style.display = match ? '' : 'none';
-    });
-  });
-</script>
 {% endblock %}

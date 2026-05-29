@@ -70,6 +70,50 @@
                      focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
           </div>
 
+          <!-- Description -->
+          <div>
+            <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Short description <span class="text-gray-400 font-normal">(shown on cards)</span></label>
+            <input type="text" id="description" name="description"
+              value="{{ page.description if action == 'edit' else form.get('description', '')}}" placeholder="A one-line summary"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+          </div>
+
+          <!-- Relevant Form -->
+          <div>
+            <label for="form_config_id" class="block text-sm font-medium text-gray-700 mb-1">
+              Relevant Form <span class="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <div class="relative">
+              <select id="form_config_id" name="form_config_id"
+                class="w-full appearance-none rounded-lg border border-gray-300 pl-3 py-2.5 pr-8 text-sm text-gray-900
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                <option value="">— None —</option>
+                {% for f in forms %}
+                  <option value="{{ f.id }}"
+                    {% if action == 'edit' and page.form_config_id == f.id %}selected
+                    {% elif form.get('form_config_id') == f.id | string %}selected{% endif %}>
+                    {{ f.name }}
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
+            <p class="mt-1 text-xs text-gray-400">Tagged articles appear first in the wiki panel when that form is active.</p>
+          </div>
+
+          <!-- Cover image -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Cover image <span class="text-gray-400 font-normal">(PNG/JPG/WEBP)</span></label>
+            {% if action == 'edit' and page.cover_image %}
+              <div class="mb-2 flex items-center gap-3"><img src="{{ url_for('static', filename='wiki_uploads/' + page.cover_image) }}" class="w-20 h-14 object-cover rounded-lg border border-gray-200" alt=""><span class="text-xs text-gray-400">Upload below to replace</span></div>
+            {% endif %}
+            <input type="file" name="cover_image" accept="image/*" class="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-4 file:rounded-md file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition">
+          </div>
+
           <!-- Parent page -->
           <div>
             <label for="parent_id" class="block text-sm font-medium text-gray-700 mb-1">Parent Page</label>
@@ -135,11 +179,6 @@
                   </div>
 
                   {% if wiki_perm and wiki_perm.can_delete %}
-                  {#
-                    Delete button is NOT inside a <form> — nested forms are illegal HTML
-                    and the browser ignores them, making the button submit the outer wiki form.
-                    Instead we POST via fetch() so the outer form is never touched.
-                  #}
                   <button type="button"
                           class="ml-4 shrink-0 text-xs font-medium text-red-400 hover:text-red-600 transition"
                           data-delete-url="{{ url_for('wiki.delete_wiki_attachment', attachment_id=att.id) }}"
@@ -264,11 +303,9 @@
     try {
       const resp = await fetch(url, { method: 'POST' });
       if (resp.ok) {
-        // Remove the row from the DOM — no page reload needed
         const row = document.getElementById('att-row-' + id);
         if (row) row.remove();
 
-        // If list is now empty show the placeholder
         const list = document.getElementById('attachments-list');
         if (list && list.querySelectorAll('li').length === 0) {
           list.remove();

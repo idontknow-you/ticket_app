@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}{% if form %}Edit — {{ form.name }}{% else %}New Form{% endif %} — Support System{% endblock %}
+
+{% block head %}
+<style>
+  .inp {
+    width: 100%;
+    border: 1px solid #e2e2de;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fafaf8;
+    outline: none;
+    color: #111;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .inp:focus {
+    border-color: #111;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(17,17,17,.07);
+  }
+  .inp::placeholder { color: #ccc; }
+  select.inp { cursor: pointer; }
+  .field-card {
+    background: #fff;
+    border: 1px solid #e8e8e4;
+    border-radius: 14px;
+    padding: 16px 18px;
+    transition: box-shadow .15s, border-color .15s;
+  }
+  .field-card:hover { border-color: #d0d0ca; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+  .field-card.drag-over { border-color: #111; box-shadow: 0 0 0 3px rgba(17,17,17,.07); }
+  .drag-handle { cursor: grab; color: #d1d5db; transition: color .15s; }
+  .drag-handle:hover { color: #9ca3af; }
+  .add-btn {
+    width: 100%;
+    border: 2px dashed #e0e0db;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #b0b0aa;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: border-color .15s, color .15s;
+  }
+  .add-btn:hover { border-color: #111; color: #111; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-8 py-8">
+
+  <!-- Back + title -->
+  <div class="flex items-center gap-3 mb-8">
+    <a href="{{ url_for('forms.list_forms') }}" class="text-muted hover:text-ink transition">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    <h1 class="font-serif text-2xl text-ink">
+      {% if form %}Edit Form{% else %}New Form{% endif %}
+    </h1>
+    {% if form %}
+      {% if form.is_published %}
+        <span class="text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium px-2.5 py-0.5 rounded-full">Published</span>
+      {% else %}
+        <span class="text-xs bg-faint border border-line text-muted font-medium px-2.5 py-0.5 rounded-full">Draft</span>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <form id="mainForm"
+        method="POST"
+        action="{{ url_for('forms.edit_form', form_id=form.id) if form else url_for('forms.new_form') }}">
+
+    <!-- Meta -->
+    <div class="bg-white border border-line rounded-2xl px-7 py-6 mb-5 space-y-4">
+      <div>
+        <label class="block text-xs text-muted font-medium uppercase tracking-wider mb-1.5">Form Name *</label>
+        <input type="text" name="name" required
+          value="{{ form.name if form else '' }}"
+          placeholder="e.g. IT Support Request"
+          class="inp text-base font-medium">
+      </div>
+      <div>
+        <label class="block text-xs text-muted font-medium uppercase tracking-wider mb-1.5">Description</label>
+        <textarea name="description" rows="2"
+          placeholder="Optional — shown to users above the form."
+          class="inp resize-none">{{ form.description if form else '' }}</textarea>
+      </div>
+    </div>
+
+    <!-- Fields section -->
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-xs font-semibold text-muted uppercase tracking-widest">Fields</h2>
+      <span id="fieldCount" class="text-xs text-muted">0 fields</span>
+    </div>
+
+    <div id="fieldList" class="space-y-3 mb-4"></div>
+
+    <button type="button" class="add-btn" onclick="addField()">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      Add a field
+    </button>
+
+    <input type="hidden" name="fields_json" id="fieldsJson">
+
+    <!-- Actions -->
+    <div class="flex items-center gap-3 mt-8">
+      <button type="submit"
+        class="bg-ink hover:bg-gray-800 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition">
+        {% if form %}Save changes{% else %}Create form{% endif %}
+      </button>
+
+      {% if form %}
+        <form method="POST" action="{{ url_for('forms.toggle_publish', form_id=form.id) }}" class="inline">
+          <button type="submit"
+            class="text-sm font-semibold px-6 py-2.5 rounded-xl border transition
+              {% if form.is_published %}border-amber-200 text-amber-700 hover:bg-amber-50
+              {% else %}border-emerald-200 text-emerald-700 hover:bg-emerald-50{% endif %}">
+            {% if form.is_published %}Unpublish{% else %}Publish{% endif %}
+          </button>
+        </form>
+
+        {% if form.is_published %}
+          <a href="{{ url_for('public.index', form=form.slug) }}" target="_blank"
+             class="text-sm text-muted hover:text-ink transition">View live ↗</a>
+        {% endif %}
+      {% endif %}
+
+      <a href="{{ url_for('forms.list_forms') }}"
+         class="text-sm text-muted hover:text-ink transition ml-auto">Cancel</a>
+    </div>
+
+  </form>
+</div>
+
+<script>
+const SEED  = {{ (form.sorted_fields | tojson) if form else '[]' }};
+const TYPES = {{ field_types | tojson }};
+let fields  = JSON.parse(JSON.stringify(SEED));
+
+// ── render ─────────────────────────────────────────────────────────────────────
+function render() {
+  const list = document.getElementById('fieldList');
+  list.innerHTML = '';
+  fields.forEach((f, i) => list.appendChild(buildCard(f, i)));
+  const n = fields.length;
+  document.getElementById('fieldCount').textContent = n === 1 ? '1 field' : `${n} fields`;
+}
+
+function buildCard(f, idx) {
+  const div = document.createElement('div');
+  div.className = 'field-card';
+  div.draggable  = true;
+
+  const typeOpts = TYPES.map(t =>
+    `<option value="${t}"${f.type === t ? ' selected' : ''}>${t}</option>`
+  ).join('');
+
+  const hasOpts = ['select','radio','checkbox'].includes(f.type);
+  const optVal  = Array.isArray(f.options) ? f.options.join('\n') : (f.options || '');
+
+  div.innerHTML = `
+    <div class="flex items-start gap-3">
+      <div class="drag-handle pt-0.5 shrink-0">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16"/>
+        </svg>
+      </div>
+      <div class="flex-1 space-y-3 min-w-0">
+        <div class="flex items-center gap-2">
+          <input type="text" class="inp flex-1 font-medium" placeholder="Field label *"
+            value="${esc(f.label || '')}"
+            onchange="upd(${idx}, 'label', this.value)">
+          <select class="inp w-32 shrink-0" onchange="upd(${idx}, 'type', this.value)">${typeOpts}</select>
+          <label class="flex items-center gap-1.5 text-xs text-muted cursor-pointer whitespace-nowrap select-none">
+            <input type="checkbox" class="w-3.5 h-3.5 accent-gray-900"
+              ${f.required ? 'checked' : ''}
+              onchange="upd(${idx}, 'required', this.checked)">
+            Required
+          </label>
+        </div>
+        <input type="text" class="inp text-muted" placeholder="Placeholder text (optional)"
+          value="${esc(f.placeholder || '')}"
+          onchange="upd(${idx}, 'placeholder', this.value)">
+        ${hasOpts ? `
+          <div>
+            <p class="text-xs text-muted mb-1">Options — one per line</p>
+            <textarea class="inp resize-y" rows="3"
+              placeholder="Option A&#10;Option B&#10;Option C"
+              onchange="upd(${idx}, 'options', this.value.split('\\n').map(s => s.trim()).filter(Boolean))"
+            >${esc(optVal)}</textarea>
+          </div>` : ''}
+      </div>
+      <button type="button" onclick="removeField(${idx})"
+        class="text-gray-300 hover:text-red-400 transition shrink-0 mt-0.5">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>`;
+
+  // Drag events
+  div.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('idx', idx);
+    div.classList.add('opacity-40');
+  });
+  div.addEventListener('dragend', () => div.classList.remove('opacity-40'));
+  div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('drag-over'); });
+  div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+  div.addEventListener('drop', e => {
+    e.preventDefault();
+    div.classList.remove('drag-over');
+    const from = parseInt(e.dataTransfer.getData('idx'));
+    const to   = idx;
+    if (from === to) return;
+    const [item] = fields.splice(from, 1);
+    fields.splice(to, 0, item);
+    fields.forEach((f, i) => f.order = i);
+    render();
+  });
+
+  return div;
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
+// ── mutations ──────────────────────────────────────────────────────────────────
+function addField() {
+  fields.push({ id: '', label: '', type: 'text', required: false, placeholder: '', options: [], order: fields.length });
+  render();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#fieldList .field-card input[type=text]');
+    if (inputs.length >= 2) inputs[inputs.length - 2].focus();
+  }, 50);
+}
+
+function removeField(idx) {
+  fields.splice(idx, 1);
+  fields.forEach((f, i) => f.order = i);
+  render();
+}
+
+function upd(idx, key, val) {
+  fields[idx][key] = val;
+  if (key === 'type') render();
+}
+
+// ── submit ─────────────────────────────────────────────────────────────────────
+document.getElementById('mainForm').addEventListener('submit', e => {
+  if (fields.some(f => !f.label.trim())) {
+    e.preventDefault();
+    alert('All fields need a label before saving.');
+    return;
+  }
+  document.getElementById('fieldsJson').value = JSON.stringify(fields);
+});
+
+render();
+</script>
+{% endblock %}

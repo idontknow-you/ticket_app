@@ -1,25 +1,23 @@
 from extensions import db
 from datetime import datetime
 
-class MailLog(db.Model):
-    __tablename__ = 'mail_logs'
-
-    id = db.Column(db.Integer, primary_key=True)
-    to_email = db.Column(db.String(120), nullable=False)
-    subject = db.Column(db.String(200), nullable=False)
-    body = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='pending')
-    related_ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=True)
-    sent_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class MailTemplate(db.Model):
-    __tablename__ = 'mail_templates'
+    __tablename__ = "mail_templates"
 
-    id = db.Column(db.Integer, primary_key=True)
-    template_key = db.Column(db.String(100), unique=True, nullable=False)
-    subject = db.Column(db.String(200), nullable=False)
-    body_html = db.Column(db.Text, nullable=False)
-    body_text = db.Column(db.Text, nullable=False)
-    description = db.Column(db.String(200), nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id             = db.Column(db.Integer, primary_key=True)
+    form_config_id = db.Column(db.Integer, db.ForeignKey("form_configurations.id"), nullable=False, unique=True)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_deleted     = db.Column(db.Boolean, default=False, nullable=False)
+    deleted_at     = db.Column(db.DateTime, nullable=True)
+
+    templates      = db.Column(db.JSON, default=dict)
+    reply_to       = db.Column(db.String(200), nullable=True)
+    from_name      = db.Column(db.String(120), nullable=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = datetime.utcnow()
+
+    def __repr__(self):
+        return f"<MailTemplate form={self.form_config_id}>"

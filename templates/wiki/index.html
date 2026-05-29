@@ -1,195 +1,197 @@
 {% extends "base.html" %}
-{% block title %}Wiki Pages{% endblock %}
+{% block title %}Wiki — Knowledge Base{% endblock %}
 
 {% block content %}
-<div class="min-h-screen py-10 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-5xl mx-auto">
+<div class="max-w-4xl mx-auto px-6 py-10">
 
-    <div class="flex items-center justify-between mb-8">
-      <div class="flex items-center gap-4">
-        {% if current_user.is_superadmin %}
-        <a href="{{ url_for('admin.panel') }}"
-           class="text-sm bg-indigo-900 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-          ← Back
-        </a>
-        {% endif %}
-        <div>
-          <h1 class="text-3xl font-bold font-serif text-gray-900 tracking-tight">Wiki Pages</h1>
-          <p class="mt-1 text-sm text-gray-500">Manage articles shown in the public help panel.</p>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="font-serif text-2xl font-bold text-ink">Knowledge Base</h1>
+      <p class="text-sm text-muted mt-0.5">{{ pages | length }} article{{ 's' if pages | length != 1 }}</p>
+    </div>
+    {% if current_user.is_authenticated and current_user.is_superadmin %}
+      <a href="{{ url_for('wiki.create') }}"
+         class="inline-flex items-center gap-1.5 bg-ink text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-800 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        New Article
+      </a>
+    {% endif %}
+  </div>
+
+  {% if pages %}
+    <div class="space-y-3">
+      {% for page in pages %}
+      {% set att_count = page.attachments.count() %}
+      {% set comment_count = (page.comments or []) | length %}
+
+      <div class="bg-white border border-line rounded-2xl overflow-hidden hover:shadow-sm transition group">
+        <div class="flex items-start gap-5 px-6 py-5">
+
+          <!-- Main content -->
+          <div class="flex-1 min-w-0">
+
+            <!-- Form tag + status badges -->
+            <div class="flex items-center gap-2 mb-2 flex-wrap">
+              {% if not page.is_published %}
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                  Draft
+                </span>
+              {% endif %}
+              {% if page.form_config %}
+                <span class="inline-flex items-center gap-1 text-[10px] font-medium text-[#0b0380] bg-[#d6e9f3] px-2 py-0.5 rounded-full">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v12a2 2 0 01-2 2z"/>
+                  </svg>
+                  {{ page.form_config.name }}
+                </span>
+              {% endif %}
+              {% if page.parent %}
+                <span class="text-[10px] text-muted bg-faint px-2 py-0.5 rounded-full border border-line">
+                  under {{ page.parent.title }}
+                </span>
+              {% endif %}
+            </div>
+
+            <!-- Title -->
+            <a href="{{ url_for('wiki.article', slug=page.slug) }}"
+               target="_blank" rel="noopener noreferrer"
+               class="block font-semibold text-ink group-hover:text-indigo-700 transition leading-snug mb-1">
+              {{ page.title }}
+            </a>
+
+            <!-- Description -->
+            {% if page.description %}
+              <p class="text-xs text-muted leading-relaxed line-clamp-2 mb-3">{{ page.description }}</p>
+            {% else %}
+              <p class="text-xs text-muted leading-relaxed line-clamp-2 mb-3">{{ page.body | striptags | truncate(120) }}</p>
+            {% endif %}
+
+            <!-- Meta row -->
+            <div class="flex items-center gap-4">
+              <!-- Likes -->
+              <span class="flex items-center gap-1 text-xs text-gray-400">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017
+                           c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095
+                           c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9
+                           m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/>
+                </svg>
+                {{ page.likes or 0 }}
+              </span>
+              <!-- Comments -->
+              <span class="flex items-center gap-1 text-xs text-gray-400">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8
+                           a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042
+                           3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                {{ comment_count }}
+              </span>
+              <!-- Attachments -->
+              {% if att_count %}
+              <span class="flex items-center gap-1 text-xs text-gray-400">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586
+                           a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                </svg>
+                {{ att_count }}
+              </span>
+              {% endif %}
+              <!-- Updated date -->
+              <span class="text-xs text-gray-400 ml-auto">
+                {{ page.updated_at.strftime('%d %b %Y') if page.updated_at else '' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Cover image -->
+          {% if page.cover_image %}
+            <div class="shrink-0 w-20 h-16 rounded-xl overflow-hidden bg-gray-100">
+              <img src="{{ url_for('static', filename='wiki_uploads/' + page.cover_image) }}"
+                   alt="{{ page.title }}"
+                   class="w-full h-full object-cover">
+            </div>
+          {% endif %}
+
+          <!-- Superadmin actions -->
+          {% if current_user.is_authenticated and current_user.is_superadmin %}
+          <div class="shrink-0 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition">
+            <a href="{{ url_for('wiki.edit', page_id=page.id) }}"
+               class="text-xs text-muted hover:text-ink transition px-2 py-1 rounded-lg hover:bg-faint">
+              Edit
+            </a>
+            <a href="{{ url_for('wiki.history', page_id=page.id) }}"
+               class="text-xs text-muted hover:text-ink transition px-2 py-1 rounded-lg hover:bg-faint">
+              History
+            </a>
+            <form method="POST" action="{{ url_for('wiki.toggle_publish_route', page_id=page.id) }}">
+              <button type="submit"
+                      class="w-full text-xs transition px-2 py-1 rounded-lg hover:bg-faint
+                        {% if page.is_published %}text-amber-500 hover:text-amber-700{% else %}text-emerald-600 hover:text-emerald-800{% endif %}">
+                {% if page.is_published %}Unpublish{% else %}Publish{% endif %}
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('wiki.delete', page_id=page.id) }}"
+                  onsubmit="return confirm('Delete \'{{ page.title }}\'?')">
+              <button type="submit"
+                      class="text-xs text-red-400 hover:text-red-600 transition px-2 py-1 rounded-lg hover:bg-faint">
+                Delete
+              </button>
+            </form>
+          </div>
+          {% endif %}
+
         </div>
+
+        <!-- Child pages (sub-articles) -->
+        {% set children = page.children.filter_by(is_deleted=False).all() %}
+        {% if children %}
+        <div class="border-t border-line px-6 py-3 bg-faint">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">Sub-articles</p>
+          <div class="flex flex-wrap gap-2">
+            {% for child in children %}
+              <a href="{{ url_for('wiki.article', slug=child.slug) }}"
+                 target="_blank" rel="noopener noreferrer"
+                 class="inline-flex items-center gap-1 text-xs text-ink hover:text-indigo-700 bg-white border border-line px-2.5 py-1 rounded-lg transition hover:border-indigo-200">
+                {{ child.title }}
+                {% if not child.is_published %}
+                  <span class="text-[9px] text-amber-500">(draft)</span>
+                {% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
       </div>
-      {% if wiki_perm and wiki_perm.can_create %}
+      {% endfor %}
+    </div>
+
+  {% else %}
+    <div class="bg-white border border-line rounded-2xl px-8 py-20 text-center">
+      <svg class="w-10 h-10 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13
+                 C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13
+                 C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13
+                 C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+      </svg>
+      <p class="text-sm text-muted mb-4">No articles yet.</p>
+      {% if current_user.is_authenticated and current_user.is_superadmin %}
         <a href="{{ url_for('wiki.create') }}"
-           class="inline-flex items-center gap-2 bg-indigo-900 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition shadow-sm">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-          </svg>
-          New Page
+           class="inline-flex items-center gap-1.5 bg-ink text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-800 transition">
+          Create the first article
         </a>
       {% endif %}
     </div>
+  {% endif %}
 
-    {% if pages %}
-      <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-gray-100 text-xs uppercase tracking-widest text-gray-400">
-              <th class="text-left px-6 py-4 font-semibold">Title</th>
-              <th class="text-left px-6 py-4 font-semibold">Children</th>
-              <th class="text-left px-6 py-4 font-semibold">Status</th>
-              <th class="text-left px-6 py-4 font-semibold">Updated</th>
-              <th class="px-6 py-4"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-50">
-            {% for page in pages %}
-              <tr class="hover:bg-gray-50 transition">
-                <td class="px-6 py-4">
-                  <p class="font-medium text-gray-900">{{ page.title }}</p>
-                  <p class="text-xs text-gray-400 mt-0.5">/{{ page.slug }}</p>
-                </td>
-                <td class="px-6 py-4 text-gray-500">
-                  {% set pub_children = page.children | selectattr('is_published') | list %}
-                  {% if page.children %}
-                    <span class="text-gray-700">{{ page.children | length }}</span>
-                    <span class="text-gray-400 text-xs ml-1">({{ pub_children | length }} published)</span>
-                  {% else %}
-                    <span class="text-gray-300">—</span>
-                  {% endif %}
-                </td>
-                <td class="px-6 py-4">
-                  {% if page.is_published %}
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                      <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Published
-                    </span>
-                  {% else %}
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
-                      <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Draft
-                    </span>
-                  {% endif %}
-                </td>
-                <td class="px-6 py-4 text-gray-400 text-xs">
-                  {{ page.updated_at.strftime('%d %b %Y') if page.updated_at else '—' }}
-                </td>
-                <td class="px-6 py-4">
-                  <div class="flex items-center justify-end gap-2">
-                    {% if wiki_perm and wiki_perm.can_edit %}
-                      <form method="POST" action="{{ url_for('wiki.toggle_publish_route', page_id=page.id) }}">
-                        <button type="submit"
-                          class="text-xs px-3 py-1.5 rounded-lg border transition
-                            {% if page.is_published %}border-gray-200 text-gray-500 hover:bg-gray-50
-                            {% else %}border-indigo-200 text-indigo-600 hover:bg-indigo-50{% endif %}">
-                          {{ 'Unpublish' if page.is_published else 'Publish' }}
-                        </button>
-                      </form>
-                    {% endif %}
-                    <a href="{{ url_for('wiki.history', page_id=page.id) }}"
-                       class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition">
-                      History
-                    </a>
-                    {% if wiki_perm and wiki_perm.can_edit %}
-                      <a href="{{ url_for('wiki.edit', page_id=page.id) }}"
-                         class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
-                        Edit
-                      </a>
-                    {% endif %}
-                    {% if wiki_perm and wiki_perm.can_delete %}
-                      <form method="POST" action="{{ url_for('wiki.delete', page_id=page.id) }}"
-                            onsubmit="return confirm('Delete \'{{ page.title }}\'? This cannot be undone.')">
-                        <button type="submit"
-                          class="text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition">
-                          Delete
-                        </button>
-                      </form>
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-
-              <!-- Child rows -->
-              {% for child in page.children | sort(attribute='title') %}
-                <tr class="bg-gray-50/50 hover:bg-gray-50 transition">
-                  <td class="px-6 py-3">
-                    <div class="flex items-center gap-2 pl-4">
-                      <svg class="w-3 h-3 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                      </svg>
-                      <p class="text-gray-700">{{ child.title }}</p>
-                    </div>
-                    <p class="text-xs text-gray-400 mt-0.5 pl-9">/{{ child.slug }}</p>
-                  </td>
-                  <td class="px-6 py-3 text-gray-300">—</td>
-                  <td class="px-6 py-3">
-                    {% if child.is_published %}
-                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Published
-                      </span>
-                    {% else %}
-                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
-                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Draft
-                      </span>
-                    {% endif %}
-                  </td>
-                  <td class="px-6 py-3 text-gray-400 text-xs">
-                    {{ child.updated_at.strftime('%d %b %Y') if child.updated_at else '—' }}
-                  </td>
-                  <td class="px-6 py-3">
-                    <div class="flex items-center justify-end gap-2">
-                      {% if wiki_perm and wiki_perm.can_edit %}
-                        <form method="POST" action="{{ url_for('wiki.toggle_publish_route', page_id=child.id) }}">
-                          <button type="submit"
-                            class="text-xs px-3 py-1.5 rounded-lg border transition
-                              {% if child.is_published %}border-gray-200 text-gray-500 hover:bg-gray-50
-                              {% else %}border-indigo-200 text-indigo-600 hover:bg-indigo-50{% endif %}">
-                            {{ 'Unpublish' if child.is_published else 'Publish' }}
-                          </button>
-                        </form>
-                      {% endif %}
-                      <a href="{{ url_for('wiki.history', page_id=child.id) }}"
-                         class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition">
-                        History
-                      </a>
-                      {% if wiki_perm and wiki_perm.can_edit %}
-                        <a href="{{ url_for('wiki.edit', page_id=child.id) }}"
-                           class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition">
-                          Edit
-                        </a>
-                      {% endif %}
-                      {% if wiki_perm and wiki_perm.can_delete %}
-                        <form method="POST" action="{{ url_for('wiki.delete', page_id=child.id) }}"
-                              onsubmit="return confirm('Delete \'{{ child.title }}\'?')">
-                          <button type="submit"
-                            class="text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition">
-                            Delete
-                          </button>
-                        </form>
-                      {% endif %}
-                    </div>
-                  </td>
-                </tr>
-              {% endfor %}
-
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-    {% else %}
-      <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-16 text-center">
-        <svg class="w-10 h-10 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-        </svg>
-        <p class="text-gray-500 text-sm">No wiki pages yet.</p>
-        {% if wiki_perm and wiki_perm.can_create %}
-          <a href="{{ url_for('wiki.create') }}"
-             class="mt-4 inline-flex items-center gap-2 text-indigo-600 hover:underline text-sm font-medium">
-            Create your first page →
-          </a>
-        {% endif %}
-      </div>
-    {% endif %}
-
-  </div>
 </div>
 {% endblock %}

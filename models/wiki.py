@@ -1,49 +1,23 @@
 from extensions import db
 from datetime import datetime
-import re
 
-def generate_slug(title):
-    slug = title.lower().strip()
-    slug = re.sub(r'[^\w\s-]', '', slug)
-    slug = re.sub(r'[\s_-]+', '-', slug)
-    slug = re.sub(r'^-+|-+$', '', slug)
-    return slug
 
-class WikiPage(db.Model):
-    __tablename__ = 'wiki_pages'
+class Wiki(db.Model):
+    __tablename__ = "wiki"
 
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    slug = db.Column(db.String(200), unique=True, nullable=False)
-    body = db.Column(db.Text, nullable=False)
-    parent_id = db.Column(db.Integer, db.ForeignKey('wiki_pages.id'), nullable=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    updated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    is_published = db.Column(db.Boolean, default=False)
+    id             = db.Column(db.Integer, primary_key=True)
+    form_config_id = db.Column(db.Integer, db.ForeignKey("form_configurations.id"), nullable=False, unique=True)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by     = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    is_deleted     = db.Column(db.Boolean, default=False, nullable=False)
+    deleted_at     = db.Column(db.DateTime, nullable=True)
 
-    children = db.relationship('WikiPage', backref=db.backref('parent', remote_side=[id]), lazy=True)
-    history = db.relationship('WikiPageHistory', backref='page', lazy=True)
+    pages  = db.Column(db.JSON, default=list)
+    editor = db.relationship("User", foreign_keys=[updated_by])
 
-class WikiPageHistory(db.Model):
-    __tablename__ = 'wiki_page_history'
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = datetime.utcnow()
 
-    id = db.Column(db.Integer, primary_key=True)
-    page_id = db.Column(db.Integer, db.ForeignKey('wiki_pages.id'), nullable=False)
-    body_snapshot = db.Column(db.Text, nullable=False)
-    edited_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    edited_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class WikiAttachment(db.Model):
-    __tablename__ = 'wiki_attachments'
-
-    id            = db.Column(db.Integer, primary_key=True)
-    page_id       = db.Column(db.Integer, db.ForeignKey('wiki_pages.id'), nullable=False)
-    filename      = db.Column(db.String(255), nullable=False)   # stored name on disk
-    original_name = db.Column(db.String(255), nullable=False)   # original upload name
-    uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
-    uploaded_by   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-
-    page     = db.relationship('WikiPage', backref=db.backref('attachments', lazy='dynamic', cascade='all, delete-orphan'))
-    uploader = db.relationship('User', foreign_keys=[uploaded_by])
+    def __repr__(self):
+        return f"<Wiki form={self.form_config_id}>"

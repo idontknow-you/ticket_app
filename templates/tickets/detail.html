@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}{{ submission.ticket_id }} — Support System{% endblock %}
+
+{% block head %}
+<style>
+  .inp {
+    width: 100%;
+    border: 1px solid #e2e2de;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fafaf8;
+    outline: none;
+    color: #111;
+    transition: border-color .15s;
+  }
+  .inp:focus { border-color: #111; background: #fff; }
+  select.inp { cursor: pointer; }
+  .status-open        { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+  .status-in_progress { background:#fffbeb; color:#d97706; border-color:#fde68a; }
+  .status-closed      { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
+  .priority-low    { background:#f9fafb; color:#6b7280; border-color:#e5e7eb; }
+  .priority-medium { background:#fffbeb; color:#b45309; border-color:#fde68a; }
+  .priority-high   { background:#fff7ed; color:#ea580c; border-color:#fed7aa; }
+  .priority-urgent { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+  .badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; border:1px solid; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-8 py-8">
+
+  <!-- Back + header -->
+  <div class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('tickets.dashboard') }}"
+         class="text-muted hover:text-ink transition mt-0.5">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <div>
+        <div class="flex items-center gap-3">
+          <h1 class="font-mono text-xl font-bold text-ink">{{ submission.ticket_id }}</h1>
+          <span class="badge status-{{ submission.status }}">
+            {{ submission.status.replace('_', ' ').title() }}
+          </span>
+          {% if submission.priority %}
+          <span class="badge priority-{{ submission.priority }}">
+            {{ submission.priority.title() }}
+          </span>
+          {% endif %}
+        </div>
+        <p class="text-muted text-sm mt-1">
+          {{ submission.form.name }} ·
+          Submitted {{ submission.submitted_at.strftime('%d %b %Y at %H:%M') }}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-6">
+
+    <!-- Left: submission data -->
+    <div class="col-span-2 space-y-6">
+
+      <!-- Field values -->
+      <div class="bg-white border border-line rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-line">
+          <h2 class="text-sm font-semibold text-ink">Submission Data</h2>
+        </div>
+        <div class="divide-y divide-line">
+          {% for field in submission.form.sorted_fields %}
+            {% set val = submission.data.get(field.id, '') %}
+            <div class="px-6 py-4 flex gap-6">
+              <div class="w-40 shrink-0">
+                <p class="text-xs font-semibold text-muted uppercase tracking-wide">{{ field.label }}</p>
+              </div>
+              <div class="flex-1 text-sm text-ink break-words">
+                {% if val is iterable and val is not string %}
+                  {% if val %}{{ val | join(', ') }}{% else %}<span class="text-muted">—</span>{% endif %}
+                {% elif val %}
+                  {% if field.type == 'textarea' %}
+                    <p class="whitespace-pre-wrap leading-relaxed">{{ val }}</p>
+                  {% else %}
+                    {{ val }}
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </div>
+            </div>
+          {% else %}
+            <div class="px-6 py-8 text-center text-muted text-sm">No fields defined for this form.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Activity log -->
+      <div class="bg-white border border-line rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-line">
+          <h2 class="text-sm font-semibold text-ink">Activity</h2>
+        </div>
+
+        {% set notes_list = submission.notes or [] %}
+        {% if notes_list %}
+          <div class="divide-y divide-line">
+            {% for entry in notes_list | reverse %}
+            <div class="px-6 py-4 flex gap-3">
+              <div class="w-7 h-7 rounded-full bg-faint border border-line flex items-center justify-center shrink-0 mt-0.5">
+                <span class="text-xs font-semibold text-muted">{{ entry.by[0].upper() }}</span>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-xs font-semibold text-ink">{{ entry.by }}</span>
+                  <span class="text-xs text-muted font-mono">{{ entry.at[:16].replace('T', ' ') }}</span>
+                </div>
+                {% if entry.action %}
+                  <p class="text-xs text-muted mt-0.5">{{ entry.action }}</p>
+                {% endif %}
+                {% if entry.note %}
+                  <p class="text-sm text-ink mt-1 leading-relaxed">{{ entry.note }}</p>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="px-6 py-8 text-center text-muted text-sm">No activity yet.</div>
+        {% endif %}
+
+        <!-- Add note -->
+        <form method="POST" action="{{ url_for('tickets.update', submission_id=submission.id) }}"
+              class="px-6 py-5 border-t border-line">
+          <textarea name="note" rows="2" placeholder="Add a note…"
+            class="inp resize-none mb-3"></textarea>
+          <input type="hidden" name="status"   value="{{ submission.status }}">
+          <input type="hidden" name="priority" value="{{ submission.priority or '' }}">
+          <input type="hidden" name="assigned_to" value="{{ submission.assigned_to or '' }}">
+          <button type="submit"
+            class="bg-ink text-white text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-800 transition">
+            Add note
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- Right: agent controls -->
+    <div class="space-y-4">
+
+      <form method="POST" action="{{ url_for('tickets.update', submission_id=submission.id) }}"
+            class="bg-white border border-line rounded-2xl p-5 space-y-4">
+
+        <h2 class="text-sm font-semibold text-ink">Ticket Details</h2>
+
+        <div>
+          <label class="block text-xs text-muted font-medium uppercase tracking-wide mb-1.5">Status</label>
+          <select name="status" class="inp">
+            {% for s in statuses %}
+              <option value="{{ s }}" {% if submission.status == s %}selected{% endif %}>
+                {{ s.replace('_', ' ').title() }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs text-muted font-medium uppercase tracking-wide mb-1.5">Priority</label>
+          <select name="priority" class="inp">
+            <option value="">— Not set —</option>
+            {% for p in priorities %}
+              <option value="{{ p }}" {% if submission.priority == p %}selected{% endif %}>
+                {{ p.title() }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs text-muted font-medium uppercase tracking-wide mb-1.5">Assigned to</label>
+          <select name="assigned_to" class="inp">
+            <option value="">— Unassigned —</option>
+            {% for agent in agents %}
+              <option value="{{ agent.id }}" {% if submission.assigned_to == agent.id %}selected{% endif %}>
+                {{ agent.username }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <input type="hidden" name="note" value="">
+
+        <button type="submit"
+          class="w-full bg-ink text-white text-sm font-medium py-2.5 rounded-xl hover:bg-gray-800 transition">
+          Save changes
+        </button>
+      </form>
+
+      <!-- Meta info -->
+      <div class="bg-white border border-line rounded-2xl p-5 space-y-3">
+        <h2 class="text-sm font-semibold text-ink">Info</h2>
+        <div>
+          <p class="text-xs text-muted uppercase tracking-wide font-medium">Form</p>
+          <p class="text-sm text-ink mt-0.5">{{ submission.form.name }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-muted uppercase tracking-wide font-medium">Submitted</p>
+          <p class="text-sm text-ink mt-0.5 font-mono">{{ submission.submitted_at.strftime('%d %b %Y %H:%M') }}</p>
+        </div>
+        {% if submission.assignee %}
+        <div>
+          <p class="text-xs text-muted uppercase tracking-wide font-medium">Assigned to</p>
+          <p class="text-sm text-ink mt-0.5">{{ submission.assignee.username }}</p>
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

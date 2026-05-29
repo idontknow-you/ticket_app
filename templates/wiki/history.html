@@ -1,101 +1,256 @@
 {% extends "base.html" %}
-{% block title %}History — {{ page.title }}{% endblock %}
+{% block title %}History · {{ page.title }}{% endblock %}
+
+{% block head %}
+<style>
+  .diff-added   { background: #d1fae5; color: #065f46; }
+  .diff-removed { background: #fee2e2; color: #991b1b; text-decoration: line-through; }
+  .diff-equal   { color: #374151; }
+
+  .snap-row { cursor: pointer; transition: background 0.15s; }
+  .snap-row:hover { background: #f9fafb; }
+  .snap-row.active { background: #eff6ff; border-left: 3px solid #6366f1; }
+
+  .diff-pane {
+    font-family: 'Courier New', monospace;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    overflow-y: auto;
+    max-height: 540px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .diff-col {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+
+  .diff-col-header {
+    padding: 0.5rem 1rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .no-snap-selected {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #9ca3af;
+    font-size: 0.875rem;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="min-h-screen py-10 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-3xl mx-auto">
+<div class="max-w-6xl mx-auto px-6 py-10">
 
-    <div class="mb-8">
-      <a href="{{ url_for('wiki.index') }}"
-         class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition mb-4">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-        </svg>
-        Back to Wiki
-      </a>
-      <h1 class="text-3xl font-bold font-serif text-gray-900 tracking-tight">Edit History</h1>
-      <p class="mt-1 text-sm text-gray-500">{{ page.title }}</p>
-    </div>
+  <!-- Header -->
+  <div class="mb-8">
+    <a href="{{ url_for('wiki.index', page_id=page.id) }}"
+       class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition mb-4">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+      Back to Wiki
+    </a>
+    <h1 class="text-2xl font-bold font-serif text-gray-900 tracking-tight">Page History</h1>
+    <p class="mt-1 text-sm text-gray-400">{{ page.title }} · {{ snapshots | length }} snapshot{{ 's' if snapshots | length != 1 }}</p>
+  </div>
 
-    {% if snapshots %}
-      {# ── Current version (top) ───────────────────────────────────────── #}
-      <div class="mb-4 bg-indigo-50 border border-indigo-200 rounded-xl shadow-sm overflow-hidden">
-        <div class="px-6 py-4 flex items-center justify-between border-b border-indigo-100">
-          <div class="flex items-center gap-3">
-            <span class="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center">
-              ✓
-            </span>
-            <div>
-              <p class="text-sm font-medium text-indigo-800">Current version</p>
-              <p class="text-xs text-indigo-400">
-                Last edited
-                {% if page.updated_by and page.updated_by in editors %}
-                  by {{ editors[page.updated_by].name }}
+  {% if not snapshots %}
+  <div class="bg-white border border-gray-200 rounded-2xl px-8 py-16 text-center shadow-sm">
+    <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <p class="text-sm text-gray-400">No history yet. Snapshots are saved each time the page is edited.</p>
+  </div>
+  {% else %}
+
+  <div class="flex gap-6 items-start">
+
+    <!-- Snapshot list -->
+    <div class="w-72 shrink-0 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-gray-100">
+        <p class="text-xs font-semibold uppercase tracking-widest text-gray-400">Snapshots</p>
+      </div>
+      <ul class="divide-y divide-gray-100" id="snap-list">
+        {% for snap in snapshots %}
+        <li class="snap-row px-5 py-3.5"
+            data-index="{{ loop.index0 }}"
+            data-title="{{ snap.title | e }}"
+            data-body="{{ snap.body | e }}"
+            data-at="{{ snap.saved_at.strftime('%b %d, %Y %H:%M') }}"
+            data-by="{{ editors.get(snap.saved_by).full_name if snap.saved_by and editors.get(snap.saved_by) else 'Unknown' }}"
+            onclick="selectSnap(this)">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-gray-800 truncate">{{ snap.title }}</p>
+              <p class="text-xs text-gray-400 mt-0.5">{{ snap.saved_at.strftime('%b %d, %Y') }}</p>
+              <p class="text-xs text-gray-400">{{ snap.saved_at.strftime('%H:%M') }}
+                {% if snap.saved_by and editors.get(snap.saved_by) %}
+                  · {{ editors.get(snap.saved_by).full_name }}
                 {% endif %}
               </p>
             </div>
+            <span class="text-xs text-indigo-400 font-mono shrink-0">#{{ loop.index }}</span>
           </div>
-          <span class="text-xs font-medium text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">Live</span>
-        </div>
-        <div class="px-6 py-4 prose prose-sm max-w-none text-gray-700 max-h-48 overflow-y-auto">
-          {{ page.body | safe }}
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3 mb-4">
-        <div class="flex-1 h-px bg-gray-200"></div>
-        <span class="text-xs text-gray-400 uppercase tracking-widest">Previous versions</span>
-        <div class="flex-1 h-px bg-gray-200"></div>
-      </div>
-
-      {# ── Snapshot list (newest first = most recent previous version) ──── #}
-      <div class="space-y-4">
-        {% for snap in snapshots %}
-          <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div class="px-6 py-4 flex items-center justify-between border-b border-gray-100">
-              <div class="flex items-center gap-3">
-                <span class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold flex items-center justify-center">
-                  {{ snapshots | length - loop.index0 }}
-                </span>
-                <div>
-                  <p class="text-sm font-medium text-gray-800">
-                    {% if snap.edited_by and snap.edited_by in editors %}
-                      Saved by {{ editors[snap.edited_by].name }}
-                    {% else %}
-                      Unknown editor
-                    {% endif %}
-                  </p>
-                  <p class="text-xs text-gray-400">{{ snap.edited_at.strftime('%d %b %Y, %H:%M') }}</p>
-                </div>
-              </div>
-              <span class="text-xs text-gray-400">
-                Version {{ snapshots | length - loop.index0 }}
-              </span>
-            </div>
-
-            {# Body snapshot — render as HTML (Quill output) with a toggle #}
-            <div class="px-6 py-4">
-              <div id="snap-body-{{ snap.id }}"
-                   class="prose prose-sm max-w-none text-gray-600 max-h-40 overflow-y-auto">
-                {{ snap.body_snapshot | safe }}
-              </div>
-            </div>
-
-          </div>
+        </li>
         {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Diff panel -->
+    <div class="flex-1 min-w-0">
+
+      <!-- No selection state -->
+      <div id="no-selection" class="bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <div class="no-snap-selected flex-col gap-2">
+          <svg class="w-8 h-8 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
+          </svg>
+          <span>Select a snapshot to see the diff</span>
+        </div>
       </div>
 
-    {% else %}
-      <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-16 text-center">
-        <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        <p class="text-gray-400 text-sm">No edit history yet.</p>
-        <p class="text-gray-300 text-xs mt-1">A snapshot is saved each time the page is updated.</p>
+      <!-- Diff view -->
+      <div id="diff-view" class="hidden">
+
+        <!-- Meta bar -->
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-6 py-4 mb-4 flex items-center justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-gray-800" id="diff-title"></p>
+            <p class="text-xs text-gray-400 mt-0.5">Saved <span id="diff-at"></span> by <span id="diff-by"></span></p>
+          </div>
+          <span class="text-xs bg-indigo-50 text-indigo-600 font-medium px-3 py-1 rounded-full" id="diff-badge"></span>
+        </div>
+
+        <!-- Side-by-side columns -->
+        <div class="flex gap-4">
+          <div class="diff-col">
+            <div class="diff-col-header bg-red-50 text-red-400">
+              ← Snapshot (before edit)
+            </div>
+            <div class="diff-pane p-4" id="diff-left"></div>
+          </div>
+          <div class="diff-col">
+            <div class="diff-col-header bg-green-50 text-green-500">
+              → Current version
+            </div>
+            <div class="diff-pane p-4" id="diff-right"></div>
+          </div>
+        </div>
+
       </div>
-    {% endif %}
+    </div>
 
   </div>
+  {% endif %}
+
 </div>
+
+<script>
+  // Current page body passed from Jinja safely via JSON script tag
+</script>
+<script type="application/json" id="current-body-data">{{ page.body | tojson }}</script>
+<script type="application/json" id="current-title-data">{{ page.title | tojson }}</script>
+
+<script>
+  const currentBody  = JSON.parse(document.getElementById('current-body-data').textContent);
+  const currentTitle = JSON.parse(document.getElementById('current-title-data').textContent);
+
+  // Strip HTML tags for diffing plain text
+  function stripHtml(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html || '';
+    return div.textContent || div.innerText || '';
+  }
+
+  // Simple word-level diff
+  function diffWords(oldText, newText) {
+    const oldWords = oldText.split(/(\s+)/);
+    const newWords = newText.split(/(\s+)/);
+
+    // LCS-based diff
+    const m = oldWords.length, n = newWords.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = m - 1; i >= 0; i--)
+      for (let j = n - 1; j >= 0; j--)
+        dp[i][j] = oldWords[i] === newWords[j]
+          ? 1 + dp[i+1][j+1]
+          : Math.max(dp[i+1][j], dp[i][j+1]);
+
+    const leftParts  = [];
+    const rightParts = [];
+    let i = 0, j = 0;
+
+    while (i < m || j < n) {
+      if (i < m && j < n && oldWords[i] === newWords[j]) {
+        leftParts.push( { type: 'equal',   text: oldWords[i] });
+        rightParts.push({ type: 'equal',   text: newWords[j] });
+        i++; j++;
+      } else if (j < n && (i >= m || dp[i][j+1] >= dp[i+1][j])) {
+        rightParts.push({ type: 'added',   text: newWords[j] });
+        j++;
+      } else {
+        leftParts.push( { type: 'removed', text: oldWords[i] });
+        i++;
+      }
+    }
+
+    return { leftParts, rightParts };
+  }
+
+  function renderParts(parts) {
+    return parts.map(p => {
+      const esc = p.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      if (p.type === 'equal')   return `<span class="diff-equal">${esc}</span>`;
+      if (p.type === 'added')   return `<span class="diff-added">${esc}</span>`;
+      if (p.type === 'removed') return `<span class="diff-removed">${esc}</span>`;
+    }).join('');
+  }
+
+  function countChanges(parts) {
+    return parts.filter(p => p.type !== 'equal').length;
+  }
+
+  function selectSnap(el) {
+    // Deactivate all
+    document.querySelectorAll('.snap-row').forEach(r => r.classList.remove('active'));
+    el.classList.add('active');
+
+    const snapBody  = el.dataset.body  || '';
+    const snapTitle = el.dataset.title || '';
+    const at        = el.dataset.at;
+    const by        = el.dataset.by;
+
+    // Diff body text
+    const oldText = stripHtml(snapBody);
+    const newText = stripHtml(currentBody);
+    const { leftParts, rightParts } = diffWords(oldText, newText);
+
+    document.getElementById('diff-left').innerHTML  = renderParts(leftParts);
+    document.getElementById('diff-right').innerHTML = renderParts(rightParts);
+
+    // Meta
+    document.getElementById('diff-title').textContent = snapTitle;
+    document.getElementById('diff-at').textContent    = at;
+    document.getElementById('diff-by').textContent    = by;
+
+    const changes = countChanges(leftParts) + countChanges(rightParts);
+    document.getElementById('diff-badge').textContent = `${changes} change${changes !== 1 ? 's' : ''}`;
+
+    document.getElementById('no-selection').classList.add('hidden');
+    document.getElementById('diff-view').classList.remove('hidden');
+  }
+</script>
 {% endblock %}

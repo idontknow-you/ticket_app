@@ -1,148 +1,140 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+import json
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_required, current_user
+from models import FormConfig, FormSubmission, User
 from extensions import db
-from models.ticket import Ticket, TicketComment, TicketHistory
-from models.user import User
-from models.permission import UserPermission
-from services.ticket_service import set_closed_at
+from datetime import datetime
 
-tickets_bp = Blueprint('tickets', __name__)
+tickets_bp = Blueprint("tickets", __name__, url_prefix="/tickets")
 
-
-def _ticket_perm():
-    """Return current user's Tickets permission row, or synthetic _All for superadmin."""
-    if current_user.is_superadmin:
-        class _All:
-            can_view = can_create = can_edit = can_delete = can_assign = True
-        return _All()
-    return UserPermission.query.filter_by(
-        user_id=current_user.id, module='Tickets'
-    ).first()
+STATUSES   = ["open", "in_progress", "closed"]
+PRIORITIES = ["low", "medium", "high", "urgent"]
 
 
-@tickets_bp.route('/dashboard')
+@tickets_bp.route("/")
 @login_required
 def dashboard():
-    status_filter   = request.args.get('status', 'all')
-    priority_filter = request.args.get('priority', 'all')
-    type_filter     = request.args.get('type', 'all')
-    search          = request.args.get('search', '').strip()
+    # ── Filters from query string ─────────────────────────────────────────────
+    f_form     = request.args.get("form", "")
+    f_status   = request.args.get("status", "")
+    f_priority = request.args.get("priority", "")
+    f_search   = request.args.get("q", "").strip()
 
-    query = Ticket.query
+    query = FormSubmission.query.filter_by(is_deleted=False)
 
-    if status_filter != 'all':
-        query = query.filter(Ticket.status == status_filter)
-    if priority_filter != 'all':
-        query = query.filter(Ticket.priority == priority_filter)
-    if type_filter != 'all':
-        query = query.filter(Ticket.type == type_filter)
-    if search:
-        query = query.filter(
-            db.or_(
-                Ticket.subject.ilike(f'%{search}%'),
-                Ticket.ticket_number.ilike(f'%{search}%'),
-                Ticket.submitter_name.ilike(f'%{search}%'),
-                Ticket.submitter_email.ilike(f'%{search}%'),
-            )
-        )
+    if f_form:
+        fc = FormConfig.query.filter_by(slug=f_form, is_deleted=False).first()
+        if fc:
+            query = query.filter(FormSubmission.form_config_id == fc.id)
 
-    # Sort: status (open > in_progress > closed) > priority (urgent > high > medium > low) > type (Issue > Bug > Other)
-    from sqlalchemy import case
-    status_order   = case({'open': 0, 'in_progress': 1, 'closed': 2}, value=Ticket.status,   else_=3)
-    priority_order = case({'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}, value=Ticket.priority, else_=4)
-    type_order     = case({'Issue': 0, 'Bug': 1, 'Other': 2}, value=Ticket.type, else_=3)
-    tickets = query.order_by(status_order, priority_order, type_order).all()
+    if f_status:
+        query = query.filter(FormSubmission.status == f_status)
 
-    total       = Ticket.query.count()
-    open_count  = Ticket.query.filter(Ticket.status == 'open').count()
-    in_progress = Ticket.query.filter(Ticket.status == 'in_progress').count()
-    closed      = Ticket.query.filter(Ticket.status == 'closed').count()
+    if f_priority:
+        query = query.filter(FormSubmission.priority == f_priority)
 
+    submissions = query.order_by(FormSubmission.submitted_at.desc()).all()
+
+    # Simple text search over ticket_id and JSON data (string match)
+    if f_search:
+        term = f_search.lower()
+        submissions = [
+            s for s in submissions
+            if term in s.ticket_id.lower()
+            or term in json.dumps(s.data).lower()
+        ]
+
+    forms = FormConfig.query.filter_by(is_deleted=False).order_by(FormConfig.order).all()
+
+    # ── Column prefs for the active form ─────────────────────────────────────
+    active_form = None
+    if f_form:
+        active_form = FormConfig.query.filter_by(slug=f_form, is_deleted=False).first()
+
+    col_prefs = {}
+    if active_form:
+        col_prefs = current_user.get_column_prefs(active_form.slug)
     return render_template(
-        'tickets/dashboard.html',
-        tickets=tickets,
-        status_filter=status_filter,
-        priority_filter=priority_filter,
-        type_filter=type_filter,
-        search=search,
-        total=total,
-        open_count=open_count,
-        in_progress=in_progress,
-        closed=closed,
+        "tickets/dashboard.html",
+        submissions=submissions,
+        forms=forms,
+        statuses=STATUSES,
+        priorities=PRIORITIES,
+        f_form=f_form,
+        f_status=f_status,
+        f_priority=f_priority,
+        f_search=f_search,
+        active_form=active_form,
+        col_prefs=col_prefs,
     )
 
 
-@tickets_bp.route('/tickets/<int:ticket_id>')
+@tickets_bp.route("/col-prefs", methods=["POST"])
 @login_required
-def view_ticket(ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
-    users = User.query.filter_by(is_active=True).order_by(User.name).all()
-    ticket_perm = _ticket_perm()
-    return render_template('tickets/view_ticket.html',
-                           ticket=ticket, users=users, ticket_perm=ticket_perm)
+def save_col_prefs():
+    """AJAX: save column visibility for a form slug."""
+    data = request.get_json()
+    slug  = data.get("slug", "")
+    prefs = data.get("prefs", {})
+    if slug:
+        current_user.set_column_prefs(slug, prefs)
+        db.session.commit()
+    return jsonify({"ok": True})
 
 
-@tickets_bp.route('/tickets/<int:ticket_id>/update', methods=['POST'])
+@tickets_bp.route("/<int:submission_id>")
 @login_required
-def update_ticket(ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
-    perm = _ticket_perm()
-
-    if not perm or not (perm.can_edit or perm.can_assign):
-        flash('You do not have permission to update tickets.', 'error')
-        return redirect(url_for('tickets.view_ticket', ticket_id=ticket_id))
-
-    editable_fields  = ['status', 'priority'] if (perm and perm.can_edit) else []
-    assignable_fields = ['assigned_to'] if (perm and perm.can_assign) else []
-    allowed_fields = editable_fields + assignable_fields
-
-    for field in allowed_fields:
-        new_val = request.form.get(field)
-        if new_val is not None:
-            old_val = str(getattr(ticket, field) or '')
-            if new_val != old_val:
-                history = TicketHistory(
-                    ticket_id=ticket.id,
-                    changed_by=current_user.id,
-                    field_changed=field,
-                    old_value=old_val,
-                    new_value=new_val,
-                )
-                db.session.add(history)
-                if field == 'assigned_to':
-                    setattr(ticket, field, int(new_val) if new_val else None)
-                else:
-                    setattr(ticket, field, new_val)
-
-    # Keep closed_at in sync with status
-    set_closed_at(ticket)
-
-    db.session.commit()
-    flash('Ticket updated.', 'success')
-    return redirect(url_for('tickets.view_ticket', ticket_id=ticket_id))
-
-
-@tickets_bp.route('/tickets/<int:ticket_id>/comment', methods=['POST'])
-@login_required
-def add_comment(ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
-    body = request.form.get('body', '').strip()
-    perm = _ticket_perm()
-
-    # Only allow internal notes for users with can_edit
-    is_internal = (request.form.get('is_internal') == 'on') and bool(perm and perm.can_edit)
-
-    if not body:
-        flash('Comment cannot be empty.', 'error')
-        return redirect(url_for('tickets.view_ticket', ticket_id=ticket_id))
-
-    comment = TicketComment(
-        ticket_id=ticket.id,
-        user_id=current_user.id,
-        body=body,
-        is_internal=is_internal,
+def detail(submission_id):
+    submission = FormSubmission.query.filter_by(id=submission_id, is_deleted=False).first_or_404()
+    agents = User.query.filter_by(is_active=True, is_deleted=False).all()
+    return render_template(
+        "tickets/detail.html",
+        submission=submission,
+        statuses=STATUSES,
+        priorities=PRIORITIES,
+        agents=agents,
     )
-    db.session.add(comment)
+
+
+@tickets_bp.route("/<int:submission_id>/update", methods=["POST"])
+@login_required
+def update(submission_id):
+    sub = FormSubmission.query.filter_by(id=submission_id, is_deleted=False).first_or_404()
+
+    new_status   = request.form.get("status")
+    new_priority = request.form.get("priority")
+    new_assigned = request.form.get("assigned_to")
+    note_text    = request.form.get("note", "").strip()
+
+    changes = []
+
+    if new_status and new_status in STATUSES and new_status != sub.status:
+        changes.append(f"Status: {sub.status} → {new_status}")
+        sub.status = new_status
+
+    if new_priority and new_priority in PRIORITIES and new_priority != sub.priority:
+        changes.append(f"Priority: {sub.priority or '—'} → {new_priority}")
+        sub.priority = new_priority
+
+    if new_assigned is not None:
+        aid = int(new_assigned) if new_assigned else None
+        if aid != sub.assigned_to:
+            agent = User.query.get(aid) if aid else None
+            changes.append(f"Assigned to: {agent.username if agent else 'nobody'}")
+            sub.assigned_to = aid
+
+    if note_text or changes:
+        log_entry = {
+            "at":     datetime.utcnow().isoformat(),
+            "by_id":  current_user.id,
+            "by":     current_user.username,
+            "action": "; ".join(changes) if changes else "",
+            "note":   note_text,
+        }
+        notes = list(sub.notes or [])
+        notes.append(log_entry)
+        sub.notes = notes
+
     db.session.commit()
-    flash('Comment added.', 'success')
-    return redirect(url_for('tickets.view_ticket', ticket_id=ticket_id))
+    flash("Ticket updated.", "success")
+    return redirect(url_for("tickets.detail", submission_id=submission_id))

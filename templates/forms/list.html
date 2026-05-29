@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Forms — Support System{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-8 py-8">
+
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="font-serif text-2xl text-ink">Forms</h1>
+      <p class="text-muted text-sm mt-1">Create and manage configurable forms.</p>
+    </div>
+    {% if current_user.is_superadmin %}
+    <a href="{{ url_for('forms.new_form') }}"
+       class="inline-flex items-center gap-1.5 bg-ink hover:bg-gray-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      New Form
+    </a>
+    {% endif %}
+  </div>
+
+  {% if forms %}
+    <div class="bg-white border border-line rounded-2xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-line bg-faint">
+            <th class="text-left px-6 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Name</th>
+            <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Status</th>
+            <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Fields</th>
+            <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Submissions</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line">
+          {% for form in forms %}
+          <tr class="hover:bg-faint transition group">
+            <td class="px-6 py-4">
+              <p class="font-medium text-ink">{{ form.name }}</p>
+              <p class="text-xs text-muted font-mono mt-0.5">/{{ form.slug }}</p>
+            </td>
+            <td class="px-4 py-4">
+              {% if form.is_published %}
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Published
+                </span>
+              {% else %}
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-muted bg-faint border border-line px-2.5 py-1 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Draft
+                </span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-4 text-muted">{{ form.fields | length }}</td>
+            <td class="px-4 py-4 text-muted">{{ form.submissions.count() }}</td>
+            <td class="px-4 py-4">
+              <div class="flex items-center gap-3 justify-end opacity-0 group-hover:opacity-100 transition">
+                {% if form.is_published %}
+                  <a href="{{ url_for('public.index', form=form.slug) }}" target="_blank"
+                     class="text-xs text-muted hover:text-ink transition">View ↗</a>
+                {% endif %}
+                <a href="{{ url_for('tickets.dashboard', form=form.slug) }}"
+                   class="text-xs text-muted hover:text-ink transition">Submissions</a>
+                {% if current_user.is_superadmin %}
+                  <a href="{{ url_for('forms.edit_form', form_id=form.id) }}"
+                     class="text-xs text-ink hover:underline">Edit</a>
+                  <form method="POST" action="{{ url_for('forms.toggle_publish', form_id=form.id) }}" class="inline">
+                    <button type="submit" class="text-xs text-muted hover:text-ink transition">
+                      {% if form.is_published %}Unpublish{% else %}Publish{% endif %}
+                    </button>
+                  </form>
+                  <form method="POST" action="{{ url_for('forms.delete_form', form_id=form.id) }}" class="inline"
+                        onsubmit="return confirm('Delete this form and all its submissions?')">
+                    <button type="submit" class="text-xs text-red-400 hover:text-red-600 transition">Delete</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  {% else %}
+    <div class="bg-white border border-dashed border-line rounded-2xl py-24 text-center">
+      <p class="text-muted text-sm mb-4">No forms yet.</p>
+      {% if current_user.is_superadmin %}
+        <a href="{{ url_for('forms.new_form') }}"
+           class="inline-flex items-center gap-1.5 bg-ink hover:bg-gray-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Create your first form
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

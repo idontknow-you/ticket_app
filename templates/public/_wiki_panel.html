@@ -1,113 +1,89 @@
-<!-- RIGHT: Wiki panel (40%) -->
-<div class="flex-[2] min-w-0 sticky top-6">
-  <div class="bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden">
+<!-- RIGHT: Wiki panel -->
+<div class="flex-[1] min-w-0 sticky top-6">
+  <div class="bg-white shadow-sm border border-line rounded-2xl overflow-hidden">
 
-    <!-- Panel header -->
-    <div class="px-6 py-5 border-b border-gray-100">
+    <div class="px-6 py-5 border-b border-line">
       <div class="flex items-center gap-2 mb-1">
-        <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 text-ink shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
         </svg>
-        <h2 class="text-sm font-semibold text-gray-900">Knowledge Base</h2>
+        <h2 class="text-sm font-semibold text-ink">Knowledge Base</h2>
       </div>
-      <p class="text-xs text-gray-400">Browse articles that may help resolve your issue before submitting.</p>
+      <p class="text-xs text-muted">Browse articles that may help before submitting.</p>
     </div>
 
-    <!-- Search -->
-    <div class="px-6 py-4 border-b border-gray-100">
+    <div class="px-6 py-4 border-b border-line">
       <div class="relative">
         <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
              fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
         </svg>
         <input type="text" id="wiki-search" placeholder="Search articles..."
-          class="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-900 placeholder-gray-400
-                 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+          class="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-line text-ink placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 transition bg-faint">
       </div>
     </div>
 
-    <!-- Article list -->
-    <div class="divide-y divide-gray-100" id="wiki-list-view">
+    <div class="divide-y divide-line" id="wiki-list-view">
       {% if wiki_pages %}
         {% for page in wiki_pages %}
-          <button type="button"
-            class="wiki-item w-full text-left px-6 py-4 hover:bg-gray-50 transition group"
-            data-title="{{ page.title | lower }}"
-            data-slug="{{ page.slug }}"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-gray-900 group-hover:text-indigo-600 transition truncate">{{ page.title }}</p>
-                <p class="text-xs text-gray-400 mt-0.5 line-clamp-2">{{ page.body | striptags | truncate(80) }}</p>
+          <a href="{{ url_for('wiki.article', slug=page.slug) }}"
+             target="_blank" rel="noopener noreferrer"
+             class="wiki-item flex items-start gap-4 px-6 py-4 hover:bg-faint transition group"
+             data-title="{{ page.title | lower }}"
+             data-tagged="{{ 'true' if page.form_config_id == active_form_id else 'false' }}">
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-ink group-hover:text-indigo-700 transition leading-snug mb-1 line-clamp-2">{{ page.title }}</p>
+              {% if page.description %}
+                <p class="text-xs text-muted leading-relaxed line-clamp-2">{{ page.description }}</p>
+              {% else %}
+                <p class="text-xs text-muted leading-relaxed line-clamp-2">{{ page.body | striptags | truncate(90) }}</p>
+              {% endif %}
+              <div class="flex items-center gap-3 mt-2">
+                <!-- Form tag -->
+                {% if page.form_config %}
+                  <span class="text-[10px] font-medium text-[#0b0380] bg-[#d6e9f3] px-2 py-0.5 rounded-full">
+                    {{ page.form_config.name }}
+                  </span>
+                {% endif %}
+                <span class="flex items-center gap-1 text-xs text-gray-400">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+                  {{ page.likes or 0 }}
+                </span>
+                <span class="flex items-center gap-1 text-xs text-gray-400">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                  {{ (page.comments or []) | length }}
+                </span>
               </div>
-              <svg class="w-4 h-4 text-gray-300 group-hover:text-indigo-400 shrink-0 mt-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-              </svg>
             </div>
-          </button>
+            {% if page.cover_image %}
+              <div class="shrink-0 w-16 h-14 rounded-lg overflow-hidden bg-gray-100">
+                <img src="{{ url_for('static', filename='wiki_uploads/' + page.cover_image) }}" alt="{{ page.title }}" class="w-full h-full object-cover">
+              </div>
+            {% endif %}
+          </a>
         {% endfor %}
       {% else %}
         <div class="px-6 py-10 text-center">
           <svg class="w-8 h-8 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
-          <p class="text-sm text-gray-400">No articles published yet.</p>
+          <p class="text-sm text-muted">No articles published yet.</p>
         </div>
       {% endif %}
-    </div>
-
-    <!-- Article reader (hidden until article clicked) -->
-    <div id="wiki-reader-view" class="hidden">
-      <div class="px-6 py-4 border-b border-gray-100">
-        <button type="button" id="wiki-back"
-          class="flex items-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 transition font-medium">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-          </svg>
-          All articles
-        </button>
-      </div>
-      <div class="px-6 py-5 max-h-[520px] overflow-y-auto">
-        <h3 id="wiki-reader-title" class="text-base font-semibold text-gray-900 font-serif mb-3"></h3>
-        <div id="wiki-reader-body" class="text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none"></div>
-
-        <div id="wiki-attachments" class="hidden mt-5">
-          <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Attachments</p>
-          <ul id="wiki-attachments-list" class="space-y-1"></ul>
-        </div>
-
-        <div id="wiki-children" class="mt-5 hidden">
-          <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Related articles</p>
-          <div id="wiki-children-list" class="space-y-1"></div>
-        </div>
-      </div>
     </div>
 
   </div>
 </div>
 
-{# Single JSON block — tojson on a real Python list, zero escaping issues #}
-<script id="wiki-data" type="application/json">
-{{ wiki_pages | map(attribute='slug') | list | tojson }}
+<script>
+  const searchInput = document.getElementById('wiki-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      const term = searchInput.value.toLowerCase().trim();
+      document.querySelectorAll('.wiki-item').forEach(el => {
+        el.style.display = (!term || el.dataset.title.includes(term)) ? '' : 'none';
+      });
+    });
+  }
 </script>
-
-{% for page in wiki_pages %}
-<script id="wiki-page-{{ page.slug }}" type="application/json">
-{
-  "slug":  {{ page.slug  | tojson }},
-  "title": {{ page.title | tojson }},
-  "body":  {{ page.body  | tojson }},
-  "attachments": {{ page.attachments.all() | map(attribute='original_name') | list | tojson }},
-  "filenames":   {{ page.attachments.all() | map(attribute='filename')      | list | tojson }},
-  "children": [
-    {% for child in page.children | selectattr("is_published") | list %}
-      { "slug": {{ child.slug | tojson }}, "title": {{ child.title | tojson }}, "body": {{ child.body | tojson }} }
-      {% if not loop.last %},{% endif %}
-    {% endfor %}
-  ]
-}
-</script>
-{% endfor %}
