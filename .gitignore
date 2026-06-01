@@ -1,4 +1,5 @@
-__pycache__
+__pycache__/
+echo "__pycache__/" >> .gitignore
 /instance
 *.pyc
 *.pyo
@@ -21,4 +22,5 @@ var/
 .installed.cfg
 *.egg
 # PyInstaller
-#  Usually these files are written by a python script from a template
+#  Usually these files are written by a python script from a template__pycache__/
+__pycache__/
