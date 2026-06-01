@@ -1,7 +1,7 @@
 import re, uuid, json
 from flask import Blueprint, render_template, redirect, url_for, request, flash
-from flask_login import login_required
-from models import FormConfig
+from flask_login import login_required, current_user
+from models import FormConfig, FormConfigVersion
 from extensions import db
 from decorators import superadmin_required
 
@@ -27,6 +27,18 @@ def _unique_slug(base, exclude_id=None):
         slug, n = f"{base}-{n}", n + 1
 
 
+def _other_forms(exclude_id=None):
+    """Return a list of dicts for all published forms except the current one,
+    used by the builder to populate the Import from form selector."""
+    q = FormConfig.query.filter_by(is_deleted=False, is_published=True)
+    if exclude_id:
+        q = q.filter(FormConfig.id != exclude_id)
+    return [
+        {"id": f.id, "name": f.name, "fields": f.sorted_fields}
+        for f in q.order_by(FormConfig.order).all()
+    ]
+
+
 @forms_bp.route("/")
 @login_required
 def list_forms():
@@ -40,7 +52,12 @@ def list_forms():
 def new_form():
     if request.method == "POST":
         return _save(None)
-    return render_template("forms/builder.html", form=None, field_types=FIELD_TYPES)
+    return render_template(
+        "forms/builder.html",
+        form=None,
+        field_types=FIELD_TYPES,
+        other_forms=_other_forms(),
+    )
 
 
 @forms_bp.route("/<int:form_id>/edit", methods=["GET", "POST"])
@@ -50,7 +67,19 @@ def edit_form(form_id):
     form = FormConfig.query.filter_by(id=form_id, is_deleted=False).first_or_404()
     if request.method == "POST":
         return _save(form)
-    return render_template("forms/builder.html", form=form, field_types=FIELD_TYPES)
+    versions = (
+        FormConfigVersion.query
+        .filter_by(form_config_id=form_id)
+        .order_by(FormConfigVersion.version.desc())
+        .all()
+    )
+    return render_template(
+        "forms/builder.html",
+        form=form,
+        field_types=FIELD_TYPES,
+        versions=versions,
+        other_forms=_other_forms(exclude_id=form_id),
+    )
 
 
 @forms_bp.route("/<int:form_id>/publish", methods=["POST"])
@@ -97,18 +126,22 @@ def _save(existing):
             f["id"] = uuid.uuid4().hex[:8]
         f["order"] = i
 
+    created_by = current_user.id if current_user.is_authenticated else None
+
     if existing:
         existing.name        = name
         existing.description = description
-        existing.fields      = fields
+        ver = existing.publish_new_version(fields=fields, created_by=created_by)
         db.session.commit()
-        flash("Form saved.", "success")
+        flash(f'Form saved as revision {ver.version}.', "success")
         return redirect(url_for("forms.edit_form", form_id=existing.id))
     else:
-        slug = _unique_slug(_slugify(name))
+        slug  = _unique_slug(_slugify(name))
         order = (db.session.query(db.func.max(FormConfig.order)).scalar() or 0) + 1
-        form = FormConfig(name=name, slug=slug, description=description, order=order, fields=fields)
+        form  = FormConfig(name=name, slug=slug, description=description, order=order)
         db.session.add(form)
+        db.session.flush()
+        form.publish_new_version(fields=fields, created_by=created_by)
         db.session.commit()
         flash(f'"{name}" created. Add fields and publish when ready.', "success")
         return redirect(url_for("forms.edit_form", form_id=form.id))

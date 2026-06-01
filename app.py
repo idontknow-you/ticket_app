@@ -10,6 +10,10 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///ticketing.db")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+    upload_folder = os.path.join(app.root_path, "static", "uploads")
+    os.makedirs(upload_folder, exist_ok=True)
+    app.config["UPLOAD_FOLDER"] = upload_folder
+
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"

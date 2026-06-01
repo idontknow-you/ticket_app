@@ -56,21 +56,21 @@
               <div class="flex items-center gap-3 justify-end opacity-0 group-hover:opacity-100 transition">
                 {% if form.is_published %}
                   <a href="{{ url_for('public.index', form=form.slug) }}" target="_blank"
-                     class="text-xs text-muted hover:text-ink transition">View ↗</a>
+                     class="text-xs text-muted hover:text-ink transition hover:underline">View ↗</a>
                 {% endif %}
                 <a href="{{ url_for('tickets.dashboard', form=form.slug) }}"
-                   class="text-xs text-muted hover:text-ink transition">Submissions</a>
+                   class="text-xs text-muted hover:text-ink transition hover:underline">Submissions</a>
                 {% if current_user.is_superadmin %}
                   <a href="{{ url_for('forms.edit_form', form_id=form.id) }}"
                      class="text-xs text-ink hover:underline">Edit</a>
                   <form method="POST" action="{{ url_for('forms.toggle_publish', form_id=form.id) }}" class="inline">
-                    <button type="submit" class="text-xs text-muted hover:text-ink transition">
+                    <button type="submit" class="text-xs text-muted hover:text-ink transition hover:underline">
                       {% if form.is_published %}Unpublish{% else %}Publish{% endif %}
                     </button>
                   </form>
                   <form method="POST" action="{{ url_for('forms.delete_form', form_id=form.id) }}" class="inline"
                         onsubmit="return confirm('Delete this form and all its submissions?')">
-                    <button type="submit" class="text-xs text-red-400 hover:text-red-600 transition">Delete</button>
+                    <button type="submit" class="text-xs text-red-400 hover:text-red-600 transition hover:underline">Delete</button>
                   </form>
                 {% endif %}
               </div>

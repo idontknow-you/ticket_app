@@ -22,6 +22,7 @@
   }
   .inp::placeholder { color: #ccc; }
   select.inp { cursor: pointer; }
+
   .field-card {
     background: #fff;
     border: 1px solid #e8e8e4;
@@ -33,6 +34,7 @@
   .field-card.drag-over { border-color: #111; box-shadow: 0 0 0 3px rgba(17,17,17,.07); }
   .drag-handle { cursor: grab; color: #d1d5db; transition: color .15s; }
   .drag-handle:hover { color: #9ca3af; }
+
   .add-btn {
     width: 100%;
     border: 2px dashed #e0e0db;
@@ -50,117 +52,379 @@
     transition: border-color .15s, color .15s;
   }
   .add-btn:hover { border-color: #111; color: #111; }
+
+  .col-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 35px;
+    height: 28px;
+    border: 1px solid #e2e2de;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 600;
+    color: #3d424d;
+    background: #fafaf8;
+    cursor: pointer;
+    transition: all .12s;
+    user-select: none;
+  }
+  .col-btn:hover { border-color: #999; color: #333; }
+  .col-btn.active { background: #0b0380; border-color: #0b0380; color: #fff; }
+
+  #previewPanel {
+    position: sticky;
+    top: 24px;
+    flex-shrink: 0;
+  }
+
+  .preview-inp {
+    width: 100%;
+    border: 1px solid #e2e2de;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #f9f9f7;
+    color: #111;
+    outline: none;
+    pointer-events: none;
+    box-sizing: border-box;
+  }
+  .preview-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #888;
+    margin-bottom: 5px;
+  }
+  .preview-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 12px;
+  }
+
+  .file-type-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid #e2e2de;
+    background: #fafaf8;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: all .12s;
+  }
+  .file-type-pill:hover { border-color: #aaa; color: #333; }
+  .file-type-pill.active { background: #0b0380; border-color: #0b0380; color: #fff; }
+  .file-type-pill input { display: none; }
+
+  /* ── option-mode pills (select/radio config) ─────────────────────────── */
+  .opt-mode-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    border: 1px solid #e2e2de;
+    background: #fafaf8;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: all .12s;
+  }
+  .opt-mode-pill:hover { border-color: #aaa; color: #333; }
+  .opt-mode-pill.active { background: #0b0380; border-color: #0b0380; color: #fff; }
+
+  /* ── cascade tree editor ─────────────────────────────────────────────── */
+  .cascade-tree { margin-top: 10px; }
+  .cascade-root-item {
+    border: 1px solid #e8e8e4;
+    border-radius: 10px;
+    background: #fafaf8;
+    margin-bottom: 6px;
+    overflow: hidden;
+  }
+  .cascade-root-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .cascade-root-header:hover { background: #f3f3f0; }
+  .cascade-root-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #111;
+    flex: 1;
+  }
+  .cascade-chevron {
+    font-size: 11px;
+    color: #bbb;
+    transition: transform .15s;
+  }
+  .cascade-chevron.open { transform: rotate(90deg); }
+  .cascade-children-wrap {
+    padding: 0 10px 8px 28px;
+    display: none;
+  }
+  .cascade-children-wrap.open { display: block; }
+  .cascade-child-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .cascade-child-inp {
+    flex: 1;
+    border: 1px solid #e2e2de;
+    border-radius: 6px;
+    padding: 5px 9px;
+    font-size: 12px;
+    font-family: inherit;
+    background: #fff;
+    outline: none;
+    color: #111;
+  }
+  .cascade-child-inp:focus { border-color: #111; }
+  .cascade-remove-btn {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 2px;
+    transition: color .12s;
+  }
+  .cascade-remove-btn:hover { color: #f87171; }
+  .cascade-add-child-btn {
+    font-size: 11px;
+    color: #999;
+    background: none;
+    border: 1px dashed #ddd;
+    border-radius: 6px;
+    padding: 3px 9px;
+    cursor: pointer;
+    margin-top: 2px;
+    transition: all .12s;
+  }
+  .cascade-add-child-btn:hover { border-color: #999; color: #333; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto px-8 py-8">
+<div class="max-w-8xl mx-auto px-8 py-8">
 
-  <!-- Back + title -->
-  <div class="flex items-center gap-3 mb-8">
-    <a href="{{ url_for('forms.list_forms') }}" class="text-muted hover:text-ink transition">
-      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-      </svg>
-    </a>
-    <h1 class="font-serif text-2xl text-ink">
-      {% if form %}Edit Form{% else %}New Form{% endif %}
-    </h1>
-    {% if form %}
-      {% if form.is_published %}
-        <span class="text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium px-2.5 py-0.5 rounded-full">Published</span>
-      {% else %}
-        <span class="text-xs bg-faint border border-line text-muted font-medium px-2.5 py-0.5 rounded-full">Draft</span>
-      {% endif %}
-    {% endif %}
-  </div>
+  <div class="flex gap-10 items-start">
 
-  <form id="mainForm"
-        method="POST"
-        action="{{ url_for('forms.edit_form', form_id=form.id) if form else url_for('forms.new_form') }}">
+    <!-- LEFT: Form builder -->
+    <div class="flex-[0.9] min-w-0">
 
-    <!-- Meta -->
-    <div class="bg-white border border-line rounded-2xl px-7 py-6 mb-5 space-y-4">
-      <div>
-        <label class="block text-xs text-muted font-medium uppercase tracking-wider mb-1.5">Form Name *</label>
-        <input type="text" name="name" required
-          value="{{ form.name if form else '' }}"
-          placeholder="e.g. IT Support Request"
-          class="inp text-base font-medium">
-      </div>
-      <div>
-        <label class="block text-xs text-muted font-medium uppercase tracking-wider mb-1.5">Description</label>
-        <textarea name="description" rows="2"
-          placeholder="Optional — shown to users above the form."
-          class="inp resize-none">{{ form.description if form else '' }}</textarea>
-      </div>
-    </div>
-
-    <!-- Fields section -->
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="text-xs font-semibold text-muted uppercase tracking-widest">Fields</h2>
-      <span id="fieldCount" class="text-xs text-muted">0 fields</span>
-    </div>
-
-    <div id="fieldList" class="space-y-3 mb-4"></div>
-
-    <button type="button" class="add-btn" onclick="addField()">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-      </svg>
-      Add a field
-    </button>
-
-    <input type="hidden" name="fields_json" id="fieldsJson">
-
-    <!-- Actions -->
-    <div class="flex items-center gap-3 mt-8">
-      <button type="submit"
-        class="bg-ink hover:bg-gray-800 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition">
-        {% if form %}Save changes{% else %}Create form{% endif %}
-      </button>
-
-      {% if form %}
-        <form method="POST" action="{{ url_for('forms.toggle_publish', form_id=form.id) }}" class="inline">
-          <button type="submit"
-            class="text-sm font-semibold px-6 py-2.5 rounded-xl border transition
-              {% if form.is_published %}border-amber-200 text-amber-700 hover:bg-amber-50
-              {% else %}border-emerald-200 text-emerald-700 hover:bg-emerald-50{% endif %}">
-            {% if form.is_published %}Unpublish{% else %}Publish{% endif %}
-          </button>
-        </form>
-
-        {% if form.is_published %}
-          <a href="{{ url_for('public.index', form=form.slug) }}" target="_blank"
-             class="text-sm text-muted hover:text-ink transition">View live ↗</a>
+      <!-- Back + title -->
+      <div class="flex items-center gap-3 mb-8">
+        <a href="{{ url_for('forms.list_forms') }}" class="text-muted hover:text-ink transition">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </a>
+        <h1 class="font-serif text-2xl text-ink">
+          {% if form %}Edit Form{% else %}New Form{% endif %}
+        </h1>
+        {% if form %}
+          <span id="publishBadge" class="text-xs font-medium px-2.5 py-0.5 rounded-full
+            {% if form.is_published %}bg-emerald-50 border border-emerald-200 text-emerald-700
+            {% else %}bg-faint border border-line text-muted{% endif %}">
+            {% if form.is_published %}Published{% else %}Draft{% endif %}
+          </span>
         {% endif %}
-      {% endif %}
+      </div>
 
-      <a href="{{ url_for('forms.list_forms') }}"
-         class="text-sm text-muted hover:text-ink transition ml-auto">Cancel</a>
+      <form id="mainForm"
+            method="POST"
+            action="{{ url_for('forms.edit_form', form_id=form.id) if form else url_for('forms.new_form') }}">
+
+        <!-- Meta -->
+        <div class="bg-white border border-line rounded-2xl px-7 py-6 mb-5 space-y-4">
+          <div>
+            <label class="block text-xs text-muted font-medium uppercase tracking-wider mb-1.5">Form Name *</label>
+            <input type="text" name="name" id="formNameInput" required
+              value="{{ form.name if form else '' }}"
+              placeholder="e.g. IT Support Request"
+              class="inp text-base font-medium"
+              oninput="updatePreviewMeta()">
+          </div>
+          <div>
+            <label class="block text-xs text-muted font-medium uppercase tracking-wider mb-1.5">Description</label>
+            <textarea name="description" id="formDescInput" rows="2"
+              placeholder="Optional — shown to users above the form."
+              class="inp resize-none"
+              oninput="updatePreviewMeta()">{{ form.description if form else '' }}</textarea>
+          </div>
+        </div>
+
+        <!-- Fields section -->
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-semibold text-muted uppercase tracking-widest">Fields</h2>
+          <span id="fieldCount" class="text-xs text-muted">0 fields</span>
+        </div>
+
+        <div id="fieldList" class="space-y-3 mb-4"></div>
+
+        <button type="button" class="add-btn" onclick="addField()">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add a field
+        </button>
+
+        <input type="hidden" name="fields_json" id="fieldsJson">
+
+        <!-- Actions -->
+        <div class="flex items-center gap-3 mt-8">
+          <button type="submit"
+            class="bg-ink hover:bg-gray-800 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition">
+            {% if form %}Save as new revision{% else %}Create form{% endif %}
+          </button>
+
+          {% if form %}
+            <button type="button"
+              id="togglePublishBtn"
+              onclick="togglePublish()"
+              data-url="{{ url_for('forms.toggle_publish', form_id=form.id) }}"
+              data-published="{{ 'true' if form.is_published else 'false' }}"
+              data-slug="{{ form.slug }}"
+              class="text-sm font-semibold px-6 py-2.5 rounded-xl border transition
+                {% if form.is_published %}border-amber-200 text-amber-700 hover:bg-amber-50
+                {% else %}border-emerald-200 text-emerald-700 hover:bg-emerald-50{% endif %}">
+              {% if form.is_published %}Unpublish{% else %}Publish{% endif %}
+            </button>
+
+            <a id="viewLiveLink"
+               href="{{ url_for('public.index', form=form.slug) }}" target="_blank"
+               class="text-sm text-muted hover:text-ink transition{% if not form.is_published %} hidden{% endif %}">
+              View live ↗
+            </a>
+          {% endif %}
+
+          <a href="{{ url_for('forms.list_forms') }}"
+             class="text-sm text-muted hover:text-ink transition ml-auto">Cancel</a>
+        </div>
+
+      </form>
     </div>
 
-  </form>
+    <!-- RIGHT: Live Preview + Version History -->
+    <div id="previewPanel" class="flex-[0.4] space-y-4">
+      <div class="bg-white shadow-sm border border-line rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-line flex items-center gap-2">
+          <svg class="w-4 h-4 text-ink shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+          <h2 class="text-sm font-semibold text-ink">Live Preview</h2>
+          <span class="ml-auto text-xs text-muted">Public view</span>
+        </div>
+
+        <div class="px-6 py-5">
+          <h1 id="previewTitle" class="font-serif text-xl text-ink mb-1">Untitled Form</h1>
+          <p id="previewDesc" class="text-muted text-xs mb-5 hidden"></p>
+          <div class="preview-grid" id="previewFields"></div>
+          <div class="mt-5">
+            <div class="inline-block bg-ink text-white text-xs font-medium px-5 py-2 rounded-xl opacity-60 cursor-default select-none">Submit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if form and versions %}
+    <!-- Version History -->
+    <div class="bg-white border border-line rounded-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-line flex items-center gap-2">
+        <svg class="w-4 h-4 text-ink shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-ink">Revision History</h2>
+        <span class="ml-auto text-xs text-muted">{{ versions | length }} revision{{ 's' if versions | length != 1 else '' }}</span>
+      </div>
+      <div class="divide-y divide-line max-h-64 overflow-y-auto">
+        {% for ver in versions %}
+        <div class="px-5 py-3 flex items-center gap-3
+          {% if ver.id == form.current_version_id %}bg-faint{% endif %}">
+          <span class="font-mono text-xs font-semibold text-ink shrink-0">v{{ ver.version }}</span>
+          <span class="text-xs text-muted flex-1">{{ ver.fields | length }} field{{ 's' if ver.fields | length != 1 else '' }}</span>
+          <span class="text-xs text-muted font-mono">{{ ver.created_at.strftime('%d %b %y %H:%M') }}</span>
+          {% if ver.id == form.current_version_id %}
+            <span class="text-xs font-medium text-emerald-600 shrink-0">current</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
 </div>
 
 <script>
-const SEED  = {{ (form.sorted_fields | tojson) if form else '[]' }};
-const TYPES = {{ field_types | tojson }};
-let fields  = JSON.parse(JSON.stringify(SEED));
+const SEED       = {{ (form.sorted_fields | tojson) if form else '[]' }};
+const TYPES      = {{ field_types | tojson }};
+// other_forms: [{id, name, fields:[{id,label,type,options,cascade,tree,child_field_name},...]}]
+// Pass this from your route: other_forms = [{'id':f.id,'name':f.name,'fields':f.sorted_fields} for f in other_published_forms]
+const OTHER_FORMS = {{ (other_forms | tojson) if other_forms is defined else '[]' }};
 
-// ── render ─────────────────────────────────────────────────────────────────────
+let fields = JSON.parse(JSON.stringify(SEED));
+
+fields.forEach(f => {
+  if (!f.col_span) f.col_span = 12;
+  if (f.type === 'file') {
+    if (!f.file_label)      f.file_label      = 'Attachments';
+    if (!f.allowed_types)   f.allowed_types   = [];
+    if (!f.max_files)       f.max_files       = 1;
+    if (!f.max_size_value)  f.max_size_value  = null;
+    if (!f.max_size_unit)   f.max_size_unit   = 'MB';
+  }
+  if (f.type === 'select' || f.type === 'radio') {
+    if (!f.option_mode)        f.option_mode        = 'plain';
+    if (!f.tree)               f.tree               = [];
+    if (!f.child_field_name)   f.child_field_name   = '';
+  }
+});
+
+const FILE_TYPES = [
+  { label: 'Images', value: 'image/*' },
+  { label: 'PDF',    value: 'application/pdf' },
+  { label: 'Word',   value: '.doc,.docx' },
+  { label: 'Excel',  value: '.xls,.xlsx' },
+  { label: 'Video',  value: 'video/*' },
+  { label: 'Audio',  value: 'audio/*' },
+  { label: 'Any',    value: '*' },
+];
+
+// ── render builder ──────────────────────────────────────────────────────────
 function render() {
   const list = document.getElementById('fieldList');
   list.innerHTML = '';
   fields.forEach((f, i) => list.appendChild(buildCard(f, i)));
   const n = fields.length;
   document.getElementById('fieldCount').textContent = n === 1 ? '1 field' : `${n} fields`;
+  renderPreview();
 }
 
 function buildCard(f, idx) {
   const div = document.createElement('div');
   div.className = 'field-card';
-  div.draggable  = true;
+  div.draggable = true;
 
   const typeOpts = TYPES.map(t =>
     `<option value="${t}"${f.type === t ? ' selected' : ''}>${t}</option>`
@@ -168,6 +432,18 @@ function buildCard(f, idx) {
 
   const hasOpts = ['select','radio','checkbox'].includes(f.type);
   const optVal  = Array.isArray(f.options) ? f.options.join('\n') : (f.options || '');
+  const span    = f.col_span || 12;
+
+  const colLabels = { 3: '¼', 4: '⅓', 6: '½', 8: '⅔', 12: 'Full' };
+  const colBtns = [3, 4, 6, 8, 12].map(v =>
+    `<button type="button" class="col-btn${span === v ? ' active' : ''}"
+      onclick="upd(${idx}, 'col_span', ${v})">${colLabels[v]}</button>`
+  ).join('');
+
+  const spanLabel = { 3: '1/4', 4: '1/3', 6: 'Half', 8: '2/3', 12: 'Full row' }[span] || 'Full row';
+
+  const fileConfig       = f.type === 'file'                         ? buildFileConfig(f, idx)   : '';
+  const selectConfig     = (f.type === 'select' || f.type === 'radio') ? buildSelectConfig(f, idx) : '';
 
   div.innerHTML = `
     <div class="flex items-start gap-3">
@@ -181,7 +457,7 @@ function buildCard(f, idx) {
           <input type="text" class="inp flex-1 font-medium" placeholder="Field label *"
             value="${esc(f.label || '')}"
             onchange="upd(${idx}, 'label', this.value)">
-          <select class="inp w-32 shrink-0" onchange="upd(${idx}, 'type', this.value)">${typeOpts}</select>
+          <select class="inp w-32 shrink-0" onchange="changeType(${idx}, this.value)">${typeOpts}</select>
           <label class="flex items-center gap-1.5 text-xs text-muted cursor-pointer whitespace-nowrap select-none">
             <input type="checkbox" class="w-3.5 h-3.5 accent-gray-900"
               ${f.required ? 'checked' : ''}
@@ -197,9 +473,16 @@ function buildCard(f, idx) {
             <p class="text-xs text-muted mb-1">Options — one per line</p>
             <textarea class="inp resize-y" rows="3"
               placeholder="Option A&#10;Option B&#10;Option C"
-              onchange="upd(${idx}, 'options', this.value.split('\\n').map(s => s.trim()).filter(Boolean))"
+              onchange="updOptions(${idx}, this.value)"
             >${esc(optVal)}</textarea>
           </div>` : ''}
+        ${fileConfig}
+        ${selectConfig}
+        <div class="flex items-center gap-2 pt-1 border-t border-gray-100">
+          <span class="text-[11px] text-muted font-medium uppercase tracking-wide mr-1">Width</span>
+          ${colBtns}
+          <span class="text-[11px] text-gray-400 ml-auto">${spanLabel}</span>
+        </div>
       </div>
       <button type="button" onclick="removeField(${idx})"
         class="text-gray-300 hover:text-red-400 transition shrink-0 mt-0.5">
@@ -209,11 +492,7 @@ function buildCard(f, idx) {
       </button>
     </div>`;
 
-  // Drag events
-  div.addEventListener('dragstart', e => {
-    e.dataTransfer.setData('idx', idx);
-    div.classList.add('opacity-40');
-  });
+  div.addEventListener('dragstart', e => { e.dataTransfer.setData('idx', idx); div.classList.add('opacity-40'); });
   div.addEventListener('dragend', () => div.classList.remove('opacity-40'));
   div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('drag-over'); });
   div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
@@ -221,10 +500,9 @@ function buildCard(f, idx) {
     e.preventDefault();
     div.classList.remove('drag-over');
     const from = parseInt(e.dataTransfer.getData('idx'));
-    const to   = idx;
-    if (from === to) return;
+    if (from === idx) return;
     const [item] = fields.splice(from, 1);
-    fields.splice(to, 0, item);
+    fields.splice(idx, 0, item);
     fields.forEach((f, i) => f.order = i);
     render();
   });
@@ -232,16 +510,426 @@ function buildCard(f, idx) {
   return div;
 }
 
+// ── file config block ───────────────────────────────────────────────────────
+function buildFileConfig(f, idx) {
+  const allowed  = Array.isArray(f.allowed_types) ? f.allowed_types : [];
+  const maxFiles = f.max_files || 1;
+  const sizeVal  = f.max_size_value || '';
+  const sizeUnit = f.max_size_unit  || 'MB';
+
+  const pills = FILE_TYPES.map(t => {
+    const active = allowed.includes(t.value);
+    return `<label class="file-type-pill${active ? ' active' : ''}">
+      <input type="checkbox" value="${t.value}" ${active ? 'checked' : ''}
+        onchange="toggleFileType(${idx}, '${t.value}', this.checked)">
+      ${t.label}
+    </label>`;
+  }).join('');
+
+  const countOpts = [1,2,3,4,5,6,7,8,9,10].map(n =>
+    `<option value="${n}" ${maxFiles === n ? 'selected' : ''}>${n}</option>`
+  ).join('');
+
+  const unitOpts = ['KB','MB','GB'].map(u =>
+    `<option value="${u}" ${sizeUnit === u ? 'selected' : ''}>${u}</option>`
+  ).join('');
+
+  return `
+    <div class="space-y-3 pt-2 border-t border-gray-100">
+      <div>
+        <p class="text-xs text-muted font-medium mb-1.5">Button label</p>
+        <input type="text" class="inp" placeholder="Attachments"
+          value="${esc(f.file_label || 'Attachments')}"
+          onchange="upd(${idx}, 'file_label', this.value)">
+      </div>
+      <div>
+        <p class="text-xs text-muted font-medium mb-1.5">Allowed file types</p>
+        <div class="flex flex-wrap gap-1.5">${pills}</div>
+      </div>
+      <div class="flex gap-3">
+        <div class="flex-1">
+          <p class="text-xs text-muted font-medium mb-1.5">Max attachments</p>
+          <select class="inp" onchange="upd(${idx}, 'max_files', parseInt(this.value))">
+            ${countOpts}
+          </select>
+        </div>
+        <div class="flex-1">
+          <p class="text-xs text-muted font-medium mb-1.5">Max size per file</p>
+          <div class="flex gap-1.5">
+            <input type="number" class="inp" min="1" placeholder="e.g. 10"
+              value="${sizeVal}"
+              onchange="upd(${idx}, 'max_size_value', this.value ? parseInt(this.value) : null)">
+            <select class="inp shrink-0" style="width:68px"
+              onchange="upd(${idx}, 'max_size_unit', this.value)">
+              ${unitOpts}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── select / radio config block ─────────────────────────────────────────────
+function buildSelectConfig(f, idx) {
+  const mode = f.option_mode || 'plain';
+
+  const modePills = [
+    { value: 'plain',    label: 'Plain list' },
+    { value: 'cascade',  label: 'Cascading' },
+    { value: 'import',   label: 'Import from form' },
+  ].map(p => `
+    <label class="opt-mode-pill${mode === p.value ? ' active' : ''}">
+      <input type="radio" name="opt_mode_${idx}" value="${p.value}"
+        ${mode === p.value ? 'checked' : ''}
+        onchange="setOptionMode(${idx}, '${p.value}')"
+        style="display:none">
+      ${p.label}
+    </label>`
+  ).join('');
+
+  let modeBody = '';
+
+  if (mode === 'cascade') {
+    modeBody = buildCascadeEditor(f, idx);
+  } else if (mode === 'import') {
+    modeBody = buildImportSelector(f, idx);
+  }
+
+  return `
+    <div class="space-y-3 pt-2 border-t border-gray-100">
+      <div>
+        <p class="text-xs text-muted font-medium mb-1.5">Options mode</p>
+        <div class="flex flex-wrap gap-1.5">${modePills}</div>
+      </div>
+      ${modeBody}
+    </div>`;
+}
+
+// ── cascade tree editor ──────────────────────────────────────────────────────
+function buildCascadeEditor(f, idx) {
+  const childFieldName = f.child_field_name || '';
+  const rootLabels     = Array.isArray(f.options) ? f.options : [];
+
+  // Reconcile tree against current root options and write back to fields[idx].tree
+  // so that all index-based mutations (updTreeChild, addTreeChild, removeTreeChild)
+  // always target the exact same array that the DOM was built from.
+  const liveTree = rootLabels.map(label => {
+    const existing = Array.isArray(fields[idx].tree)
+      ? fields[idx].tree.find(n => n.label === label)
+      : null;
+    return existing || { label, children: [] };
+  });
+  fields[idx].tree = liveTree;
+
+  const treeItems = liveTree.map((node, ni) => {
+    const children = Array.isArray(node.children) ? node.children : [];
+    const childRows = children.map((c, ci) => `
+      <div class="cascade-child-row">
+        <span class="text-gray-300 text-xs">↳</span>
+        <input class="cascade-child-inp"
+          value="${esc(c.label)}"
+          placeholder="Child option"
+          oninput="updTreeChild(${idx}, ${ni}, ${ci}, this.value)">
+        <button type="button" class="cascade-remove-btn"
+          onclick="removeTreeChild(${idx}, ${ni}, ${ci})">×</button>
+      </div>`).join('');
+
+    return `
+      <div class="cascade-root-item">
+        <div class="cascade-root-header" onclick="toggleCascadeNode(this)">
+          <span class="cascade-chevron">▶</span>
+          <span class="cascade-root-label">${esc(node.label)}</span>
+          <span class="text-xs text-gray-400">${children.length} child${children.length !== 1 ? 'ren' : ''}</span>
+        </div>
+        <div class="cascade-children-wrap">
+          ${childRows}
+          <button type="button" class="cascade-add-child-btn"
+            onclick="addTreeChild(${idx}, ${ni})">+ add child</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const noRoots = rootLabels.length === 0
+    ? `<p class="text-xs text-gray-400 italic">Add options in the textarea above — they'll appear here as root nodes.</p>`
+    : '';
+
+  return `
+    <div>
+      <p class="text-xs text-muted font-medium mb-1">Child field label</p>
+      <input type="text" class="inp" placeholder="e.g. Subcategory, Time slot…"
+        value="${esc(childFieldName)}"
+        oninput="upd(${idx}, 'child_field_name', this.value)">
+      <p class="text-[11px] text-gray-400 mt-1 mb-2">
+        When a user picks a root option, a new <em>${esc(childFieldName || 'child')}</em> field appears with that option's children.
+      </p>
+      <div class="cascade-tree">
+        ${noRoots}
+        ${treeItems}
+      </div>
+    </div>`;
+}
+
+// ── import selector ──────────────────────────────────────────────────────────
+function buildImportSelector(f, idx) {
+  if (!OTHER_FORMS.length) {
+    return `<p class="text-xs text-gray-400 italic">No other published forms available to import from.</p>`;
+  }
+
+  const formOpts = OTHER_FORMS.map(of =>
+    `<option value="${of.id}">${esc(of.name)}</option>`
+  ).join('');
+
+  // fields from selected form that are select/radio
+  const selectedFormId = f._import_form_id || '';
+  let fieldOpts = '<option value="">— pick a form first —</option>';
+  if (selectedFormId) {
+    const srcForm = OTHER_FORMS.find(of => String(of.id) === String(selectedFormId));
+    if (srcForm) {
+      const eligible = (srcForm.fields || []).filter(sf =>
+        sf.type === 'select' || sf.type === 'radio'
+      );
+      if (eligible.length) {
+        fieldOpts = eligible.map(sf =>
+          `<option value="${sf.id}">${esc(sf.label)}</option>`
+        ).join('');
+      } else {
+        fieldOpts = '<option value="">No select/radio fields in this form</option>';
+      }
+    }
+  }
+
+  return `
+    <div class="space-y-2">
+      <div>
+        <p class="text-xs text-muted font-medium mb-1">Source form</p>
+        <select class="inp" onchange="setImportForm(${idx}, this.value)">
+          <option value="">Select a form…</option>
+          ${formOpts}
+        </select>
+      </div>
+      <div id="import-field-wrap-${idx}">
+        <p class="text-xs text-muted font-medium mb-1">Source field</p>
+        <select class="inp" id="import-field-sel-${idx}"
+          onchange="setImportField(${idx}, this.value)">
+          ${fieldOpts}
+        </select>
+      </div>
+      <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none mt-1">
+        <input type="checkbox" class="w-3.5 h-3.5 accent-gray-900"
+          id="import-children-chk-${idx}"
+          ${f._import_with_children ? 'checked' : ''}
+          onchange="upd(${idx}, '_import_with_children', this.checked)">
+        Also import child options (cascade tree)
+      </label>
+      <button type="button"
+        class="text-xs font-medium px-4 py-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-white hover:border-gray-400 transition"
+        onclick="doImport(${idx})">
+        Apply import ↓
+      </button>
+      <p class="text-[11px] text-gray-400">
+        This copies options into the textarea above. You can edit them freely after importing.
+      </p>
+    </div>`;
+}
+
+// ── cascade node toggle ──────────────────────────────────────────────────────
+function toggleCascadeNode(header) {
+  const chev = header.querySelector('.cascade-chevron');
+  const wrap = header.nextElementSibling;
+  const open = wrap.classList.toggle('open');
+  chev.classList.toggle('open', open);
+}
+
+// ── option mode ──────────────────────────────────────────────────────────────
+function setOptionMode(idx, mode) {
+  fields[idx].option_mode = mode;
+  if (mode === 'cascade' && !fields[idx].tree) fields[idx].tree = [];
+  render();
+}
+
+// ── options textarea handler — also syncs tree root labels ──────────────────
+function updOptions(idx, raw) {
+  const opts = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  fields[idx].options = opts;
+
+  // keep tree root entries in sync so builder stays consistent
+  if (fields[idx].option_mode === 'cascade') {
+    const existingTree = Array.isArray(fields[idx].tree) ? fields[idx].tree : [];
+    fields[idx].tree = opts.map(label => {
+      const ex = existingTree.find(n => n.label === label);
+      return ex || { label, children: [] };
+    });
+  }
+  render();
+}
+
+// ── tree mutations ────────────────────────────────────────────────────────────
+function updTreeChild(fieldIdx, nodeIdx, childIdx, val) {
+  // Direct mutation into fields — no re-render needed since oninput fires
+  // on every keystroke and the DOM input already reflects the typed value.
+  fields[fieldIdx].tree[nodeIdx].children[childIdx].label = val;
+}
+
+function addTreeChild(fieldIdx, nodeIdx) {
+  if (!Array.isArray(fields[fieldIdx].tree[nodeIdx].children))
+    fields[fieldIdx].tree[nodeIdx].children = [];
+  fields[fieldIdx].tree[nodeIdx].children.push({ label: '' });
+  render();
+}
+
+function removeTreeChild(fieldIdx, nodeIdx, childIdx) {
+  fields[fieldIdx].tree[nodeIdx].children.splice(childIdx, 1);
+  render();
+}
+
+// ── import helpers ────────────────────────────────────────────────────────────
+function setImportForm(idx, formId) {
+  fields[idx]._import_form_id  = formId;
+  fields[idx]._import_field_id = '';
+  render();
+}
+
+function setImportField(idx, fieldId) {
+  fields[idx]._import_field_id = fieldId;
+}
+
+function doImport(idx) {
+  const formId  = fields[idx]._import_form_id;
+  const fieldId = fields[idx]._import_field_id
+                  || document.getElementById(`import-field-sel-${idx}`)?.value;
+  const withChildren = fields[idx]._import_with_children;
+
+  if (!formId || !fieldId) {
+    alert('Please select a form and a field to import from.');
+    return;
+  }
+
+  const srcForm  = OTHER_FORMS.find(of => String(of.id) === String(formId));
+  const srcField = srcForm && (srcForm.fields || []).find(sf => String(sf.id) === String(fieldId));
+  if (!srcField) { alert('Source field not found.'); return; }
+
+  // Copy flat options
+  const opts = Array.isArray(srcField.options) ? [...srcField.options] : [];
+  fields[idx].options = opts;
+
+  if (withChildren && srcField.cascade && Array.isArray(srcField.tree) && srcField.tree.length) {
+    fields[idx].option_mode      = 'cascade';
+    fields[idx].tree             = JSON.parse(JSON.stringify(srcField.tree));
+    fields[idx].child_field_name = srcField.child_field_name || '';
+  }
+
+  render();
+}
+
+// ── file helpers ──────────────────────────────────────────────────────────────
+function toggleFileType(idx, val, checked) {
+  let allowed = Array.isArray(fields[idx].allowed_types) ? [...fields[idx].allowed_types] : [];
+  if (checked) { if (!allowed.includes(val)) allowed.push(val); }
+  else           allowed = allowed.filter(v => v !== val);
+  fields[idx].allowed_types = allowed;
+  render();
+}
+
 function esc(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;');
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+// ── preview ───────────────────────────────────────────────────────────────────
+function updatePreviewMeta() {
+  const title = document.getElementById('formNameInput').value.trim();
+  const desc  = document.getElementById('formDescInput').value.trim();
+  document.getElementById('previewTitle').textContent = title || 'Untitled Form';
+  const descEl = document.getElementById('previewDesc');
+  descEl.textContent = desc;
+  descEl.classList.toggle('hidden', !desc);
+}
+
+function renderPreview() {
+  const container = document.getElementById('previewFields');
+  container.innerHTML = '';
+
+  if (!fields.length) {
+    container.innerHTML = `<div style="grid-column:span 12" class="text-center py-6">
+      <p class="text-xs text-gray-300">No fields added yet.</p>
+    </div>`;
+    return;
+  }
+
+  fields.forEach(f => {
+    const span = f.col_span || 12;
+    const wrap = document.createElement('div');
+    wrap.style.gridColumn = `span ${span}`;
+
+    const label       = f.label || 'Untitled field';
+    const placeholder = f.placeholder || '';
+    const type        = f.type || 'text';
+
+    let inputHtml = '';
+    if (type === 'textarea') {
+      inputHtml = `<textarea class="preview-inp" rows="3" placeholder="${esc(placeholder)}" disabled></textarea>`;
+    } else if (type === 'select') {
+      const opts = Array.isArray(f.options) && f.options.length
+        ? f.options.map(o => `<option>${esc(o)}</option>`).join('')
+        : '';
+      const cascadeBadge = f.option_mode === 'cascade' && f.child_field_name
+        ? `<p style="font-size:11px;color:#999;margin-top:3px">↳ reveals <em>${esc(f.child_field_name)}</em> field on select</p>`
+        : '';
+      inputHtml = `<select class="preview-inp" disabled>
+        <option>Select an option</option>${opts}
+      </select>${cascadeBadge}`;
+    } else if (type === 'radio' || type === 'checkbox') {
+      const opts = Array.isArray(f.options) && f.options.length ? f.options : ['Option A', 'Option B'];
+      const cascadeBadge = f.option_mode === 'cascade' && f.child_field_name
+        ? `<p style="font-size:11px;color:#999;margin-top:3px">↳ reveals <em>${esc(f.child_field_name)}</em> field on pick</p>`
+        : '';
+      inputHtml = `<div class="space-y-1.5 mt-0.5">${opts.map(o =>
+        `<label class="flex items-center gap-2 text-xs text-gray-500 cursor-default">
+          <input type="${type}" disabled class="w-3 h-3 accent-gray-400"> ${esc(o)}
+        </label>`).join('')}</div>${cascadeBadge}`;
+    } else if (type === 'file') {
+      const btnLabel = f.file_label || 'Attachments';
+      const maxF     = f.max_files || 1;
+      const sizeVal  = f.max_size_value;
+      const sizeUnit = f.max_size_unit || 'MB';
+      const allowed  = Array.isArray(f.allowed_types) && f.allowed_types.length
+        ? f.allowed_types.filter(t => t !== '*').map(t => {
+            const match = FILE_TYPES.find(ft => ft.value === t);
+            return match ? match.label : t;
+          }).join(', ')
+        : 'Any';
+      const hint = [
+        allowed !== 'Any' ? allowed : null,
+        sizeVal ? `max ${sizeVal}${sizeUnit}` : null,
+        maxF > 1 ? `up to ${maxF} files` : null,
+      ].filter(Boolean).join(' · ');
+
+      inputHtml = `
+        <div class="preview-inp flex items-center gap-0 overflow-hidden p-0" style="padding:0">
+          <span style="padding:7px 12px;background:#f0f0ec;border-right:1px solid #e2e2de;font-size:12px;white-space:nowrap;color:#555">${esc(btnLabel)}</span>
+          <span style="padding:7px 10px;font-size:12px;color:#ccc">No file chosen</span>
+        </div>
+        ${hint ? `<p style="font-size:11px;color:#aaa;margin-top:4px">${esc(hint)}</p>` : ''}`;
+    } else {
+      inputHtml = `<input type="text" class="preview-inp" placeholder="${esc(placeholder)}" disabled>`;
+    }
+
+    wrap.innerHTML = `<div>
+      <span class="preview-label">${esc(label)}${f.required ? ' <span style="color:#f87171">*</span>' : ''}</span>
+      ${inputHtml}
+    </div>`;
+    container.appendChild(wrap);
+  });
 }
 
 // ── mutations ──────────────────────────────────────────────────────────────────
 function addField() {
-  fields.push({ id: '', label: '', type: 'text', required: false, placeholder: '', options: [], order: fields.length });
+  fields.push({
+    id: '', label: '', type: 'text', required: false,
+    placeholder: '', options: [], order: fields.length, col_span: 12,
+    file_label: 'Attachments', allowed_types: [], max_files: 1,
+    max_size_value: null, max_size_unit: 'MB',
+    option_mode: 'plain', tree: [], child_field_name: '',
+  });
   render();
   setTimeout(() => {
     const inputs = document.querySelectorAll('#fieldList .field-card input[type=text]');
@@ -257,7 +945,23 @@ function removeField(idx) {
 
 function upd(idx, key, val) {
   fields[idx][key] = val;
-  if (key === 'type') render();
+  render();
+}
+
+function changeType(idx, val) {
+  fields[idx].type = val;
+  if (val === 'file') {
+    if (!fields[idx].file_label)    fields[idx].file_label    = 'Attachments';
+    if (!fields[idx].allowed_types) fields[idx].allowed_types = [];
+    if (!fields[idx].max_files)     fields[idx].max_files     = 1;
+    if (!fields[idx].max_size_unit) fields[idx].max_size_unit = 'MB';
+  }
+  if (val === 'select' || val === 'radio') {
+    if (!fields[idx].option_mode)      fields[idx].option_mode      = 'plain';
+    if (!fields[idx].tree)             fields[idx].tree             = [];
+    if (!fields[idx].child_field_name) fields[idx].child_field_name = '';
+  }
+  render();
 }
 
 // ── submit ─────────────────────────────────────────────────────────────────────
@@ -267,9 +971,70 @@ document.getElementById('mainForm').addEventListener('submit', e => {
     alert('All fields need a label before saving.');
     return;
   }
-  document.getElementById('fieldsJson').value = JSON.stringify(fields);
+
+  // Before serialising, strip internal-only import state keys
+  // and mark cascade fields properly
+  const clean = fields.map(f => {
+    const out = { ...f };
+    delete out._import_form_id;
+    delete out._import_field_id;
+    delete out._import_with_children;
+    if (out.type === 'select' || out.type === 'radio') {
+      out.cascade = out.option_mode === 'cascade';
+    }
+    return out;
+  });
+
+  document.getElementById('fieldsJson').value = JSON.stringify(clean);
 });
 
+// ── publish toggle ─────────────────────────────────────────────────────────────
+async function togglePublish() {
+  const btn = document.getElementById('togglePublishBtn');
+  const isPublished = btn.dataset.published === 'true';
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    const res = await fetch(btn.dataset.url, { method: 'POST' });
+    if (!res.ok) throw new Error('Request failed');
+
+    const nowPublished = !isPublished;
+    btn.dataset.published = nowPublished ? 'true' : 'false';
+    btn.textContent = nowPublished ? 'Unpublish' : 'Publish';
+
+    if (nowPublished) {
+      btn.classList.remove('border-emerald-200','text-emerald-700','hover:bg-emerald-50');
+      btn.classList.add('border-amber-200','text-amber-700','hover:bg-amber-50');
+    } else {
+      btn.classList.remove('border-amber-200','text-amber-700','hover:bg-amber-50');
+      btn.classList.add('border-emerald-200','text-emerald-700','hover:bg-emerald-50');
+    }
+
+    const badge = document.getElementById('publishBadge');
+    if (badge) {
+      badge.textContent = nowPublished ? 'Published' : 'Draft';
+      if (nowPublished) {
+        badge.classList.remove('bg-faint','border-line','text-muted');
+        badge.classList.add('bg-emerald-50','border-emerald-200','text-emerald-700');
+      } else {
+        badge.classList.remove('bg-emerald-50','border-emerald-200','text-emerald-700');
+        badge.classList.add('bg-faint','border-line','text-muted');
+      }
+    }
+
+    const liveLink = document.getElementById('viewLiveLink');
+    if (liveLink) liveLink.classList.toggle('hidden', !nowPublished);
+
+  } catch (err) {
+    btn.textContent = isPublished ? 'Unpublish' : 'Publish';
+    alert('Something went wrong. Please try again.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+updatePreviewMeta();
 render();
 </script>
 {% endblock %}

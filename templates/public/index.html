@@ -39,11 +39,33 @@
           <div class="mb-6"></div>
         {% endif %}
 
-        <form method="POST" action="{{ url_for('public.submit', slug=active_form.slug) }}" novalidate>
-          <div class="space-y-5">
+        <form method="POST" action="{{ url_for('public.submit', slug=active_form.slug) }}" enctype="multipart/form-data" novalidate>
+          {% set base_cls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-ink placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition" %}
+
+          <!-- 12-column grid for field layout -->
+          <div style="display:grid; grid-template-columns: repeat(12, 1fr); gap: 16px;" id="formGrid">
             {% for field in active_form.sorted_fields %}
-              {% set base_cls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-ink placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition" %}
-              <div>
+
+              {# ── determine if this field is a cascade child of another field ── #}
+              {# We build a map: child_field_name -> parent_field_id               #}
+              {# and hide child fields on page load; JS shows them on parent change #}
+              {% set is_cascade_child = false %}
+              {% set cascade_parent_id = '' %}
+              {% for pf in active_form.sorted_fields %}
+                {% if pf.cascade and pf.child_field_name and pf.child_field_name == field.label %}
+                  {% set is_cascade_child = true %}
+                  {% set cascade_parent_id = pf.id %}
+                {% endif %}
+              {% endfor %}
+
+              <div
+                id="field-wrap-{{ field.id }}"
+                style="grid-column: span {{ field.col_span if field.col_span else 12 }}{% if is_cascade_child %}; display:none{% endif %}"
+                {% if is_cascade_child %}
+                  data-cascade-child="true"
+                  data-parent-id="{{ cascade_parent_id }}"
+                {% endif %}>
+
                 <label class="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
                   {{ field.label }}
                   {% if field.required %}<span class="text-red-400 ml-0.5">*</span>{% endif %}
@@ -56,20 +78,68 @@
                     class="{{ base_cls }} resize-none"></textarea>
 
                 {% elif field.type == 'select' %}
-                  <select name="{{ field.id }}"
-                    {% if field.required %}required{% endif %}
-                    class="{{ base_cls }}">
-                    <option value="">Select an option</option>
-                    {% for opt in field.options %}
-                      <option value="{{ opt }}">{{ opt }}</option>
-                    {% endfor %}
-                  </select>
+                  {# ── cascade select ── #}
+                  {% if field.cascade and field.tree %}
+                    <select name="{{ field.id }}"
+                      id="sel-{{ field.id }}"
+                      {% if field.required %}required{% endif %}
+                      class="{{ base_cls }}"
+                      data-cascade="true"
+                      data-field-id="{{ field.id }}"
+                      data-tree="{{ field.tree | tojson | e }}"
+                      data-child-field-name="{{ field.child_field_name or '' }}">
+                      <option value="">Select an option</option>
+                      {% for opt in field.options %}
+                        <option value="{{ opt }}">{{ opt }}</option>
+                      {% endfor %}
+                    </select>
+                  {% else %}
+                    {# ── plain select ── #}
+                    <select name="{{ field.id }}"
+                      {% if field.required %}required{% endif %}
+                      class="{{ base_cls }}">
+                      <option value="">Select an option</option>
+                      {% for opt in field.options %}
+                        <option value="{{ opt }}">{{ opt }}</option>
+                      {% endfor %}
+                    </select>
+                  {% endif %}
 
-                {% elif field.type in ('radio', 'checkbox') %}
+                {% elif field.type == 'radio' %}
+                  {# ── cascade radio ── #}
+                  {% if field.cascade and field.tree %}
+                    <div class="space-y-2 mt-1"
+                      data-cascade="true"
+                      data-field-id="{{ field.id }}"
+                      data-tree="{{ field.tree | tojson | e }}"
+                      data-child-field-name="{{ field.child_field_name or '' }}">
+                      {% for opt in field.options %}
+                        <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
+                          <input type="radio" name="{{ field.id }}" value="{{ opt }}"
+                            class="accent-gray-900 w-4 h-4 cascade-radio"
+                            data-field-id="{{ field.id }}">
+                          {{ opt }}
+                        </label>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    {# ── plain radio ── #}
+                    <div class="space-y-2 mt-1">
+                      {% for opt in field.options %}
+                        <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
+                          <input type="radio" name="{{ field.id }}" value="{{ opt }}"
+                            class="accent-gray-900 w-4 h-4">
+                          {{ opt }}
+                        </label>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+
+                {% elif field.type == 'checkbox' %}
                   <div class="space-y-2 mt-1">
                     {% for opt in field.options %}
                       <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
-                        <input type="{{ field.type }}" name="{{ field.id }}" value="{{ opt }}"
+                        <input type="checkbox" name="{{ field.id }}" value="{{ opt }}"
                           class="accent-gray-900 w-4 h-4">
                         {{ opt }}
                       </label>
@@ -77,9 +147,65 @@
                   </div>
 
                 {% elif field.type == 'file' %}
-                  <input type="file" name="{{ field.id }}"
+                  {% set btn_label  = field.file_label if field.file_label else 'Attachments' %}
+                  {% set max_files  = (field.max_files | int) if field.max_files else 1 %}
+                  {% set size_val   = field.max_size_value if field.max_size_value else '' %}
+                  {% set size_unit  = field.max_size_unit  if field.max_size_unit  else 'MB' %}
+                  {% set allowed_types = field.allowed_types if field.allowed_types else [] %}
+                  {% set has_wildcard  = not allowed_types or '*' in allowed_types %}
+                  {% set accept_str    = allowed_types | reject('equalto', '*') | join(',') if not has_wildcard else '' %}
+
+                  <input type="file"
+                    id="real-input-{{ field.id }}"
+                    name="{{ field.id }}"
                     {% if field.required %}required{% endif %}
-                    class="w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-faint file:text-ink file:font-medium hover:file:bg-line transition">
+                    multiple
+                    {% if accept_str %}accept="{{ accept_str }}"{% endif %}
+                    class="sr-only">
+
+                  <div class="space-y-2">
+                    <div id="dropzone-{{ field.id }}"
+                         class="flex items-center w-full rounded-xl border border-gray-200 bg-gray-50 overflow-hidden cursor-pointer hover:bg-white transition"
+                         onclick="triggerPicker('{{ field.id }}')">
+                      <span class="shrink-0 px-4 py-2.5 bg-gray-100 border-r border-gray-200 text-xs font-medium text-ink whitespace-nowrap select-none">
+                        {{ btn_label }}
+                      </span>
+                      <span class="px-3 text-sm text-gray-300 truncate flex-1 select-none" id="file-label-{{ field.id }}">
+                        No file chosen
+                      </span>
+                    </div>
+                    <div id="thumb-strip-{{ field.id }}" class="flex flex-wrap gap-2"></div>
+                  </div>
+
+                  <input type="file"
+                    id="picker-{{ field.id }}"
+                    multiple
+                    {% if accept_str %}accept="{{ accept_str }}"{% endif %}
+                    class="sr-only"
+                    onchange="accumulateFiles('{{ field.id }}', this, {{ max_files }}, '{{ size_val }}', '{{ size_unit }}')">
+
+                  {% if allowed_types and not has_wildcard %}
+                    {% set type_labels = {
+                      'image/*':           'Images',
+                      'application/pdf':   'PDF',
+                      '.doc,.docx':        'Word',
+                      '.xls,.xlsx':        'Excel',
+                      'video/*':           'Video',
+                      'audio/*':           'Audio'
+                    } %}
+                    {% set readable = [] %}
+                    {% for t in allowed_types %}
+                      {% set _ = readable.append(type_labels.get(t, t)) %}
+                    {% endfor %}
+                    {% set type_hint = readable | join(', ') %}
+                  {% else %}
+                    {% set type_hint = '' %}
+                  {% endif %}
+                  {% set hints = [] %}
+                  {% if type_hint %}{% set _ = hints.append(type_hint) %}{% endif %}
+                  {% if size_val %}{% set _ = hints.append('max ' ~ size_val ~ size_unit ~ ' per file') %}{% endif %}
+                  {% if max_files > 1 %}{% set _ = hints.append('up to ' ~ max_files ~ ' files') %}{% endif %}
+                  {% if hints %}<p class="mt-1 text-xs text-gray-400">{{ hints | join(' · ') }}</p>{% endif %}
 
                 {% else %}
                   <input type="{{ field.type }}" name="{{ field.id }}"
@@ -87,6 +213,7 @@
                     placeholder="{{ field.placeholder or '' }}"
                     class="{{ base_cls }}">
                 {% endif %}
+
               </div>
             {% endfor %}
           </div>
@@ -109,4 +236,231 @@
   {% endif %}
 
 </div>
+
+<script>
+// ── file attachment logic (unchanged) ─────────────────────────────────────────
+const _dt = {};
+
+function triggerPicker(fieldId) {
+  document.getElementById('picker-' + fieldId).click();
+}
+
+function accumulateFiles(fieldId, picker, maxF, sizeVal, sizeUnit) {
+  const newFiles  = Array.from(picker.files);
+  const unitBytes = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 };
+  const maxBytes  = sizeVal ? parseFloat(sizeVal) * (unitBytes[sizeUnit] || unitBytes.MB) : null;
+
+  if (!_dt[fieldId]) _dt[fieldId] = new DataTransfer();
+  const dt = _dt[fieldId];
+
+  for (const f of newFiles) {
+    const alreadyHave = Array.from(dt.files).some(x => x.name === f.name && x.size === f.size);
+    if (alreadyHave) continue;
+    if (maxBytes && f.size > maxBytes) {
+      alert(`"${f.name}" exceeds the ${sizeVal}${sizeUnit} limit per file.`);
+      continue;
+    }
+    if (dt.files.length >= maxF) {
+      alert(`You can attach at most ${maxF} file${maxF !== 1 ? 's' : ''}.`);
+      break;
+    }
+    dt.items.add(f);
+  }
+
+  const realInput = document.getElementById('real-input-' + fieldId);
+  realInput.files = dt.files;
+  picker.value = '';
+  renderStrip(fieldId, dt.files);
+}
+
+function removeFile(fieldId, idx) {
+  const dt = _dt[fieldId];
+  if (!dt) return;
+  const fresh = new DataTransfer();
+  Array.from(dt.files).forEach((f, i) => { if (i !== idx) fresh.items.add(f); });
+  _dt[fieldId] = fresh;
+  document.getElementById('real-input-' + fieldId).files = fresh.files;
+  renderStrip(fieldId, fresh.files);
+}
+
+function renderStrip(fieldId, files) {
+  const label = document.getElementById('file-label-' + fieldId);
+  const strip = document.getElementById('thumb-strip-' + fieldId);
+  const count = files.length;
+  label.textContent = count === 0 ? 'No file chosen'
+                    : count === 1 ? files[0].name
+                    : `${count} files selected`;
+  label.style.color = count === 0 ? '' : '#111';
+  strip.innerHTML = '';
+  Array.from(files).forEach((file, idx) => {
+    const isImage = file.type.startsWith('image/');
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;gap:6px;' +
+      'padding:4px 8px 4px 4px;border-radius:8px;border:1px solid #e2e2de;background:#fafaf8;max-width:180px;';
+    if (isImage) {
+      const img = document.createElement('img');
+      img.style.cssText = 'width:36px;height:36px;object-fit:cover;border-radius:5px;flex-shrink:0;';
+      img.src = URL.createObjectURL(file);
+      wrap.appendChild(img);
+    } else {
+      const icon = document.createElement('span');
+      icon.style.cssText = 'width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;';
+      icon.textContent = '📄';
+      wrap.appendChild(icon);
+    }
+    const name = document.createElement('span');
+    name.style.cssText = 'font-size:11px;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';
+    name.textContent = file.name;
+    wrap.appendChild(name);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.innerHTML = '×';
+    del.title = 'Remove';
+    del.style.cssText = 'margin-left:2px;background:none;border:none;color:#999;font-size:16px;line-height:1;cursor:pointer;padding:0;flex-shrink:0;';
+    del.onclick = (e) => { e.stopPropagation(); removeFile(fieldId, idx); };
+    wrap.appendChild(del);
+    strip.appendChild(wrap);
+  });
+}
+
+// ── cascade logic ─────────────────────────────────────────────────────────────
+
+// Build a lookup: parentFieldId -> { tree, childFieldName }
+// from all elements with data-cascade="true"
+const cascadeSources = {};
+
+document.querySelectorAll('[data-cascade="true"]').forEach(el => {
+  const fieldId       = el.dataset.fieldId;
+  const tree          = JSON.parse(el.dataset.tree || '[]');
+  const childName     = el.dataset.childFieldName || '';
+  cascadeSources[fieldId] = { tree, childName };
+});
+
+// Find the child field wrapper by matching its label text to childFieldName
+function findChildWrap(childName) {
+  // child wraps are marked data-cascade-child="true" with data-parent-id
+  // but we also need to find them by the label text inside
+  const allWraps = document.querySelectorAll('[data-cascade-child="true"]');
+  for (const w of allWraps) {
+    const labelEl = w.querySelector('label');
+    if (labelEl) {
+      const labelText = labelEl.textContent.trim().replace(/\s*\*\s*$/, '').trim();
+      if (labelText.toLowerCase() === childName.toLowerCase()) return w;
+    }
+  }
+  // Fallback: search all field wraps for matching label
+  const allFieldWraps = document.querySelectorAll('[id^="field-wrap-"]');
+  for (const w of allFieldWraps) {
+    const labelEl = w.querySelector('label');
+    if (labelEl) {
+      const labelText = labelEl.textContent.trim().replace(/\s*\*\s*$/, '').trim();
+      if (labelText.toLowerCase() === childName.toLowerCase()) return w;
+    }
+  }
+  return null;
+}
+
+// Find the child select/radio container inside a wrapper
+function findChildInput(wrap) {
+  return wrap.querySelector('select') || wrap.querySelector('[data-cascade], .space-y-2');
+}
+
+// Update child field: show/hide and populate options
+function updateChildField(fieldId, selectedValue) {
+  const src = cascadeSources[fieldId];
+  if (!src) return;
+
+  const childWrap = findChildWrap(src.childName);
+  if (!childWrap) return;
+
+  if (!selectedValue) {
+    // Hide child and clear its value
+    childWrap.style.display = 'none';
+    clearChildField(childWrap);
+    return;
+  }
+
+  // Find matching tree node
+  const node = src.tree.find(n => n.label === selectedValue);
+  const children = (node && Array.isArray(node.children)) ? node.children : [];
+
+  if (!children.length) {
+    childWrap.style.display = 'none';
+    clearChildField(childWrap);
+    return;
+  }
+
+  // Show the child wrapper
+  childWrap.style.display = '';
+
+  // Populate child options
+  const childSelect = childWrap.querySelector('select');
+  if (childSelect) {
+    // Preserve field name
+    const name = childSelect.name;
+    childSelect.innerHTML = `<option value="">Select an option</option>` +
+      children.map(c => `<option value="${escHtml(c.label)}">${escHtml(c.label)}</option>`).join('');
+    childSelect.name = name;
+    // Reset any downstream cascade from child
+    childSelect.value = '';
+    handleCascadeChange(childSelect.dataset.fieldId || '', '');
+  }
+
+  // Handle radio child
+  const childRadioWrap = childWrap.querySelector('.space-y-2');
+  if (childRadioWrap && !childSelect) {
+    const name = childRadioWrap.querySelector('input[type=radio]')?.name || '';
+    childRadioWrap.innerHTML = children.map(c => `
+      <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
+        <input type="radio" name="${name}" value="${escHtml(c.label)}"
+          class="accent-gray-900 w-4 h-4 cascade-radio"
+          data-field-id="${childRadioWrap.dataset.fieldId || ''}">
+        ${escHtml(c.label)}
+      </label>`).join('');
+    // Re-attach listeners for newly created radios
+    attachRadioListeners();
+  }
+}
+
+function clearChildField(wrap) {
+  const sel = wrap.querySelector('select');
+  if (sel) { sel.value = ''; sel.innerHTML = '<option value="">Select an option</option>'; }
+  const radios = wrap.querySelectorAll('input[type=radio]');
+  radios.forEach(r => { r.checked = false; });
+}
+
+function handleCascadeChange(fieldId, value) {
+  if (!fieldId) return;
+  updateChildField(fieldId, value);
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+// Attach change listeners to cascade selects
+document.querySelectorAll('select[data-cascade="true"]').forEach(sel => {
+  sel.addEventListener('change', () => {
+    handleCascadeChange(sel.dataset.fieldId, sel.value);
+  });
+});
+
+// Attach change listeners to cascade radios
+function attachRadioListeners() {
+  document.querySelectorAll('input.cascade-radio').forEach(radio => {
+    // avoid double-binding
+    if (radio._cascadeBound) return;
+    radio._cascadeBound = true;
+    radio.addEventListener('change', () => {
+      if (radio.checked) handleCascadeChange(radio.dataset.fieldId, radio.value);
+    });
+  });
+}
+attachRadioListeners();
+</script>
+
 {% endblock %}

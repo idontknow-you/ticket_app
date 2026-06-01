@@ -53,8 +53,11 @@
           {% endif %}
         </div>
         <p class="text-muted text-sm mt-1">
-          {{ submission.form.name }} ·
-          Submitted {{ submission.submitted_at.strftime('%d %b %Y at %H:%M') }}
+          {{ submission.form.name }}
+          {% if submission.form_version %}
+            · <span class="font-mono text-xs bg-faint border border-line rounded px-1.5 py-0.5">v{{ submission.form_version.version }}</span>
+          {% endif %}
+          · Submitted {{ submission.submitted_at.strftime('%d %b %Y at %H:%M') }}
         </p>
       </div>
     </div>
@@ -71,14 +74,45 @@
           <h2 class="text-sm font-semibold text-ink">Submission Data</h2>
         </div>
         <div class="divide-y divide-line">
-          {% for field in submission.form.sorted_fields %}
+          {% for field in submission.version_fields %}
             {% set val = submission.data.get(field.id, '') %}
             <div class="px-6 py-4 flex gap-6">
               <div class="w-40 shrink-0">
                 <p class="text-xs font-semibold text-muted uppercase tracking-wide">{{ field.label }}</p>
               </div>
               <div class="flex-1 text-sm text-ink break-words">
-                {% if val is iterable and val is not string %}
+                {% if field.type == 'file' %}
+                  {# val is a list of {filename, original_name, url} dicts #}
+                  {% if val and val | length > 0 %}
+                    {% set image_exts = ['.jpg','.jpeg','.png','.gif','.webp','.svg','.bmp'] %}
+                    <div class="flex flex-wrap gap-2">
+                      {% for att in val %}
+                        {% if att is mapping and att.url %}
+                          {% set ext = att.original_name.rsplit('.', 1)[-1].lower() %}
+                          {% set is_image = ('.' ~ ext) in image_exts %}
+                          {% if is_image %}
+                            <img src="{{ att.url }}"
+                                 alt="{{ att.original_name }}"
+                                 title="{{ att.original_name }}"
+                                 onclick="openLightbox('{{ att.url }}', '{{ att.original_name }}')"
+                                 class="rounded-lg border border-line object-cover cursor-zoom-in hover:opacity-90 transition"
+                                 style="height:80px;max-width:120px;">
+                          {% else %}
+                            <a href="{{ att.url }}" target="_blank" download="{{ att.original_name }}"
+                               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-faint text-xs text-ink hover:bg-white transition">
+                              <svg class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                              </svg>
+                              {{ att.original_name }}
+                            </a>
+                          {% endif %}
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                {% elif val is iterable and val is not string %}
                   {% if val %}{{ val | join(', ') }}{% else %}<span class="text-muted">—</span>{% endif %}
                 {% elif val %}
                   {% if field.type == 'textarea' %}
@@ -203,7 +237,12 @@
         <h2 class="text-sm font-semibold text-ink">Info</h2>
         <div>
           <p class="text-xs text-muted uppercase tracking-wide font-medium">Form</p>
-          <p class="text-sm text-ink mt-0.5">{{ submission.form.name }}</p>
+          <p class="text-sm text-ink mt-0.5">
+            {{ submission.form.name }}
+            {% if submission.form_version %}
+              <span class="font-mono text-xs text-muted ml-1">v{{ submission.form_version.version }}</span>
+            {% endif %}
+          </p>
         </div>
         <div>
           <p class="text-xs text-muted uppercase tracking-wide font-medium">Submitted</p>
@@ -220,4 +259,33 @@
     </div>
   </div>
 </div>
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()"
+     style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);
+            align-items:center;justify-content:center;cursor:zoom-out;">
+  <img id="lightbox-img" src="" alt=""
+       style="max-width:90vw;max-height:90vh;border-radius:10px;box-shadow:0 25px 60px rgba(0,0,0,0.5);object-fit:contain;">
+  <div id="lightbox-name"
+       style="position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
+              color:#fff;font-size:13px;opacity:0.7;pointer-events:none;"></div>
+  <button onclick="closeLightbox()" aria-label="Close"
+          style="position:absolute;top:16px;right:20px;background:none;border:none;
+                 color:#fff;font-size:28px;cursor:pointer;line-height:1;">×</button>
+</div>
+
+<script>
+function openLightbox(url, name) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox-name').textContent = name || '';
+  lb.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
+
 {% endblock %}

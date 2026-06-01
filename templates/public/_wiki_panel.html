@@ -1,5 +1,5 @@
 <!-- RIGHT: Wiki panel -->
-<div class="flex-[1] min-w-0 sticky top-6">
+<div class="flex-[0.5] min-w-0 sticky top-6">
   <div class="bg-white shadow-sm border border-line rounded-2xl overflow-hidden">
 
     <div class="px-6 py-5 border-b border-line">
@@ -19,7 +19,7 @@
              fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
         </svg>
-        <input type="text" id="wiki-search" placeholder="Search articles..."
+        <input type="text" id="wiki-search" placeholder="Search articles"
           class="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-line text-ink placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 transition bg-faint">
       </div>
     </div>
@@ -27,25 +27,28 @@
     <div class="divide-y divide-line" id="wiki-list-view">
       {% if wiki_pages %}
         {% for page in wiki_pages %}
+          
           <a href="{{ url_for('wiki.article', slug=page.slug) }}"
              target="_blank" rel="noopener noreferrer"
              class="wiki-item flex items-start gap-4 px-6 py-4 hover:bg-faint transition group"
              data-title="{{ page.title | lower }}"
-             data-tagged="{{ 'true' if page.form_config_id == active_form_id else 'false' }}">
+             data-tagged="{{ 'true' if page.form_config_id == active_form_id else 'false' }}" >
+            
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-ink group-hover:text-indigo-700 transition leading-snug mb-1 line-clamp-2">{{ page.title }}</p>
+              <div class="flex items-center gap-2 mb-1">
+                <p class="text-sm font-semibold text-ink group-hover:text-indigo-700 transition leading-snug line-clamp-2">{{ page.title }}</p>
+                {% if page.form_config %}
+                  <span class="shrink-0 text-[10px] font-medium text-[#0b0380] bg-[#d6e9f3] px-2 py-0.5 rounded-full">
+                    {{ page.form_config.name }}
+                  </span>
+                {% endif %}
+              </div>
               {% if page.description %}
                 <p class="text-xs text-muted leading-relaxed line-clamp-2">{{ page.description }}</p>
               {% else %}
                 <p class="text-xs text-muted leading-relaxed line-clamp-2">{{ page.body | striptags | truncate(90) }}</p>
               {% endif %}
               <div class="flex items-center gap-3 mt-2">
-                <!-- Form tag -->
-                {% if page.form_config %}
-                  <span class="text-[10px] font-medium text-[#0b0380] bg-[#d6e9f3] px-2 py-0.5 rounded-full">
-                    {{ page.form_config.name }}
-                  </span>
-                {% endif %}
                 <span class="flex items-center gap-1 text-xs text-gray-400">
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
                   {{ page.likes or 0 }}
