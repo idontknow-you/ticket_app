@@ -24,3 +24,4 @@ var/
 # PyInstaller
 #  Usually these files are written by a python script from a template__pycache__/
 __pycache__/
+static/

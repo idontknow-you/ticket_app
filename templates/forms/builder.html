@@ -3,6 +3,137 @@
 
 {% block head %}
 <style>
+  /* ── modals ─────────────────────────────────────────────────────────────── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+    animation: fadeIn .2s ease-out;
+  }
+  .modal-overlay.active { display: flex; align-items: center; justify-content: center; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .modal-content {
+    background: #fff;
+    border: 1px solid #e8e8e4;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+    max-width: 420px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    animation: slideUp .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #f0f0ec;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #111;
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 24px;
+    line-height: 1;
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color .15s;
+  }
+  .modal-close:hover { color: #999; }
+
+  .modal-body {
+    padding: 20px 24px;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.6;
+  }
+  .modal-body p { margin: 0; }
+
+  .modal-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .modal-list li {
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .12s;
+    font-size: 13px;
+    color: #111;
+    margin-bottom: 4px;
+  }
+  .modal-list li:hover { background: #f5f5f3; }
+  .modal-list li.selected { background: #ede9fe; color: #0b0380; font-weight: 600; }
+  .modal-list li.hidden { display: none; }
+
+  .modal-input {
+    width: 100%;
+    border: 1px solid #e2e2de;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fafaf8;
+    color: #111;
+    outline: none;
+    transition: border-color .15s;
+    box-sizing: border-box;
+  }
+  .modal-input:focus {
+    border-color: #111;
+    background: #fff;
+  }
+  .modal-input::placeholder { color: #ccc; }
+
+  .modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #f0f0ec;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .modal-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .12s;
+    font-family: inherit;
+  }
+  .modal-btn.primary {
+    background: #0b0380;
+    color: #fff;
+  }
+  .modal-btn.primary:hover { background: #0a0260; }
+  .modal-btn.secondary {
+    background: #f5f5f3;
+    color: #111;
+    border: 1px solid #e2e2de;
+  }
+  .modal-btn.secondary:hover { background: #efefed; border-color: #999; }
+
   .inp {
     width: 100%;
     border: 1px solid #e2e2de;
@@ -89,9 +220,10 @@
     background: #f9f9f7;
     color: #111;
     outline: none;
-    pointer-events: none;
     box-sizing: border-box;
+    cursor: pointer;
   }
+  .preview-inp:disabled { pointer-events: none; opacity: 0.7; }
   .preview-label {
     display: block;
     font-size: 10px;
@@ -125,78 +257,126 @@
   .file-type-pill.active { background: #0b0380; border-color: #0b0380; color: #fff; }
   .file-type-pill input { display: none; }
 
-  /* ── option-mode pills (select/radio config) ─────────────────────────── */
-  .opt-mode-pill {
+  /* ── options pill editor ─────────────────────────────────────────────── */
+  .opt-pills-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid #e2e2de;
+    border-radius: 10px;
+    background: #fafaf8;
+    min-height: 40px;
+  }
+  .opt-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px 3px 10px;
+    border-radius: 7px;
+    background: #fff;
+    border: 1px solid #e2e2de;
+    font-size: 12px;
+    color: #111;
+    cursor: grab;
+    user-select: none;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .opt-pill:hover { border-color: #aaa; }
+  .opt-pill.drag-over-pill { border-color: #0b0380; box-shadow: 0 0 0 2px rgba(11,3,128,.1); }
+  .opt-pill-remove {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    margin-left: 2px;
+    transition: color .12s;
+  }
+  .opt-pill-remove:hover { color: #f87171; }
+  .opt-pill-add {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 4px 12px;
-    border-radius: 8px;
-    border: 1px solid #e2e2de;
-    background: #fafaf8;
-    color: #888;
+    padding: 3px 10px;
+    border-radius: 7px;
+    background: transparent;
+    border: 1px dashed #d0d0ca;
     font-size: 12px;
-    cursor: pointer;
-    user-select: none;
-    transition: all .12s;
+    color: #aaa;
+    cursor: text;
+    transition: border-color .12s, color .12s;
+    min-width: 90px;
   }
-  .opt-mode-pill:hover { border-color: #aaa; color: #333; }
-  .opt-mode-pill.active { background: #0b0380; border-color: #0b0380; color: #fff; }
+  .opt-pill-add:focus { outline: none; border-color: #111; color: #111; background: #fff; }
+  .opt-pill-add::placeholder { color: #ccc; }
 
-  /* ── cascade tree editor ─────────────────────────────────────────────── */
-  .cascade-tree { margin-top: 10px; }
-  .cascade-root-item {
-    border: 1px solid #e8e8e4;
-    border-radius: 10px;
-    background: #fafaf8;
-    margin-bottom: 6px;
-    overflow: hidden;
+  /* ── branching / conditions ──────────────────────────────────────────── */
+  .conditions-section {
+    border-top: 1px solid #f0f0ec;
+    padding-top: 10px;
+    margin-top: 4px;
   }
-  .cascade-root-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    cursor: pointer;
-    user-select: none;
-  }
-  .cascade-root-header:hover { background: #f3f3f0; }
-  .cascade-root-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: #111;
-    flex: 1;
-  }
-  .cascade-chevron {
-    font-size: 11px;
-    color: #bbb;
-    transition: transform .15s;
-  }
-  .cascade-chevron.open { transform: rotate(90deg); }
-  .cascade-children-wrap {
-    padding: 0 10px 8px 28px;
-    display: none;
-  }
-  .cascade-children-wrap.open { display: block; }
-  .cascade-child-row {
+  .conditions-toggle {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    cursor: pointer;
+    user-select: none;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    transition: color .12s;
   }
-  .cascade-child-inp {
+  .conditions-toggle:hover { color: #555; }
+  .conditions-toggle.has-conditions { color: #0b0380; }
+  .conditions-toggle svg { transition: transform .15s; }
+  .conditions-toggle.open svg { transform: rotate(90deg); }
+
+  .conditions-body { margin-top: 8px; display: none; }
+  .conditions-body.open { display: block; }
+
+  .condition-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .condition-row select {
     flex: 1;
     border: 1px solid #e2e2de;
-    border-radius: 6px;
-    padding: 5px 9px;
+    border-radius: 8px;
+    padding: 5px 8px;
     font-size: 12px;
     font-family: inherit;
-    background: #fff;
-    outline: none;
+    background: #fafaf8;
     color: #111;
+    outline: none;
+    cursor: pointer;
+    min-width: 0;
   }
-  .cascade-child-inp:focus { border-color: #111; }
-  .cascade-remove-btn {
+  .condition-row select:focus { border-color: #111; background: #fff; }
+  .condition-operator {
+    flex: none !important;
+    min-width: 60px !important;
+    width: auto !important;
+  }
+  .condition-eq {
+    font-size: 11px;
+    color: #aaa;
+    font-weight: 600;
+    flex-shrink: 0;
+    padding: 0 2px;
+  }
+  .condition-remove {
     background: none;
     border: none;
     color: #ccc;
@@ -204,21 +384,52 @@
     font-size: 15px;
     line-height: 1;
     padding: 0 2px;
+    flex-shrink: 0;
     transition: color .12s;
   }
-  .cascade-remove-btn:hover { color: #f87171; }
-  .cascade-add-child-btn {
+  .condition-remove:hover { color: #f87171; }
+  .condition-add-btn {
     font-size: 11px;
     color: #999;
     background: none;
     border: 1px dashed #ddd;
     border-radius: 6px;
-    padding: 3px 9px;
+    padding: 4px 10px;
     cursor: pointer;
     margin-top: 2px;
     transition: all .12s;
+    font-family: inherit;
   }
-  .cascade-add-child-btn:hover { border-color: #999; color: #333; }
+  .condition-add-btn:hover { border-color: #999; color: #333; }
+  .condition-and-badge {
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: #0b0380;
+    border: 1px solid #0b0380;
+    border-radius: 4px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+  }
+  .condition-and-badge.or {
+    background: #7c3aed;
+    border-color: #7c3aed;
+  }
+
+  /* preview conditional field indicator */
+  .preview-field-conditional {
+    position: relative;
+  }
+  .preview-field-conditional::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #c4b5fd;
+    border-radius: 2px;
+  }
 </style>
 {% endblock %}
 
@@ -241,7 +452,7 @@
           {% if form %}Edit Form{% else %}New Form{% endif %}
         </h1>
         {% if form %}
-          <span id="publishBadge" class="text-xs font-medium px-2.5 py-0.5 rounded-full
+          <span id="publishBadge" class="text-xs font-medium px-2.5 py-0.5 rounded-full 
             {% if form.is_published %}bg-emerald-50 border border-emerald-200 text-emerald-700
             {% else %}bg-faint border border-line text-muted{% endif %}">
             {% if form.is_published %}Published{% else %}Draft{% endif %}
@@ -274,7 +485,10 @@
 
         <!-- Fields section -->
         <div class="flex items-center justify-between mb-3">
-          <h2 class="text-xs font-semibold text-muted uppercase tracking-widest">Fields</h2>
+          <div class="flex items-center gap-2">
+            <h2 class="text-xs font-semibold text-muted uppercase tracking-widest">Fields</h2>
+            <button type="button" onclick="importForm()" class="text-xs px-3 py-1 border border-line rounded-lg hover:bg-gray-50">Import Form</button>
+          </div>
           <span id="fieldCount" class="text-xs text-muted">0 fields</span>
         </div>
 
@@ -344,60 +558,126 @@
           </div>
         </div>
       </div>
-    </div>
 
-    {% if form and versions %}
-    <!-- Version History -->
-    <div class="bg-white border border-line rounded-2xl overflow-hidden">
-      <div class="px-5 py-4 border-b border-line flex items-center gap-2">
-        <svg class="w-4 h-4 text-ink shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        <h2 class="text-sm font-semibold text-ink">Revision History</h2>
-        <span class="ml-auto text-xs text-muted">{{ versions | length }} revision{{ 's' if versions | length != 1 else '' }}</span>
-      </div>
-      <div class="divide-y divide-line max-h-64 overflow-y-auto">
-        {% for ver in versions %}
-        <div class="px-5 py-3 flex items-center gap-3
-          {% if ver.id == form.current_version_id %}bg-faint{% endif %}">
-          <span class="font-mono text-xs font-semibold text-ink shrink-0">v{{ ver.version }}</span>
-          <span class="text-xs text-muted flex-1">{{ ver.fields | length }} field{{ 's' if ver.fields | length != 1 else '' }}</span>
-          <span class="text-xs text-muted font-mono">{{ ver.created_at.strftime('%d %b %y %H:%M') }}</span>
-          {% if ver.id == form.current_version_id %}
-            <span class="text-xs font-medium text-emerald-600 shrink-0">current</span>
-          {% endif %}
+      {% if form and versions %}
+      <!-- Version History -->
+      <div class="bg-white border border-line rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-line flex items-center gap-2">
+          <svg class="w-4 h-4 text-ink shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <h2 class="text-sm font-semibold text-ink">Revision History</h2>
+          <span class="ml-auto text-xs text-muted">{{ versions | length }} revision{{ 's' if versions | length != 1 else '' }}</span>
         </div>
-        {% endfor %}
+        <div class="divide-y divide-line max-h-64 overflow-y-auto">
+          {% for ver in versions %}
+          <div class="px-5 py-3 flex items-center gap-3
+            {% if ver.id == form.current_version_id %}bg-faint{% endif %}">
+            <span class="font-mono text-xs font-semibold text-ink shrink-0">v{{ ver.version }}</span>
+            <span class="text-xs text-muted flex-1">{{ ver.fields | length }} field{{ 's' if ver.fields | length != 1 else '' }}</span>
+            <span class="text-xs text-muted font-mono">{{ ver.created_at.strftime('%d %b %y %H:%M') }}</span>
+            {% if ver.id == form.current_version_id %}
+              <span class="text-xs font-medium text-emerald-600 shrink-0">current</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
       </div>
+      {% endif %}
     </div>
-    {% endif %}
 
   </div>
 </div>
 
-<script>
-const SEED       = {{ (form.sorted_fields | tojson) if form else '[]' }};
-const TYPES      = {{ field_types | tojson }};
-// other_forms: [{id, name, fields:[{id,label,type,options,cascade,tree,child_field_name},...]}]
-// Pass this from your route: other_forms = [{'id':f.id,'name':f.name,'fields':f.sorted_fields} for f in other_published_forms]
-const OTHER_FORMS = {{ (other_forms | tojson) if other_forms is defined else '[]' }};
+<!-- ════════════════════════════════════════════════════════════════════════════
+     MODAL DIALOGS
+     ════════════════════════════════════════════════════════════════════════════ -->
 
-let fields = JSON.parse(JSON.stringify(SEED));
+<!-- Alert Modal -->
+<div id="alertModal" class="modal-overlay" onclick="if(event.target === this) closeAlertModal()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="alertTitle">Alert</h3>
+      <button type="button" class="modal-close" onclick="closeAlertModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p id="alertMessage"></p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="modal-btn primary" onclick="closeAlertModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Selection Modal (for import options) -->
+<div id="selectionModal" class="modal-overlay" onclick="if(event.target === this) closeSelectionModal()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="selectionTitle">Select an option</h3>
+      <button type="button" class="modal-close" onclick="closeSelectionModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="text" id="searchInput" class="modal-input" placeholder="Search..." 
+        style="margin-bottom:12px;display:none"
+        oninput="filterSelectionList(this.value)">
+      <ul id="selectionList" class="modal-list"></ul>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="modal-btn secondary" onclick="closeSelectionModal()">Cancel</button>
+      <button type="button" class="modal-btn primary" id="selectionConfirmBtn" onclick="confirmSelection()" disabled>Select</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div id="confirmModal" class="modal-overlay" onclick="if(event.target === this) closeConfirmModal()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="confirmTitle">Confirm</h3>
+      <button type="button" class="modal-close" onclick="closeConfirmModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirmMessage"></p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="modal-btn secondary" onclick="closeConfirmModal()">Cancel</button>
+      <button type="button" class="modal-btn primary" onclick="confirmAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SEED  = {{ (form.sorted_fields | tojson) if form else '[]' }};
+const TYPES = {{ field_types | tojson }};
+const OTHER_FORMS = {{ other_forms | tojson }};
+
+// Condition-capable parent types
+const PARENT_TYPES = new Set(['select', 'radio', 'checkbox']);
+
+const DEFAULT_FIELDS = [
+  {id: tempId(), label:'Name', type:'text', required:true, placeholder:'Enter your name', options:[], order:0, col_span:12, conditions:[], conditions_logic:'AND'},
+  {id: tempId(), label:'Email', type:'email', required:true, placeholder:'Enter your email', options:[], order:1, col_span:12, conditions:[], conditions_logic:'AND'},
+  {id: tempId(), label:'Subject', type:'text', required:true, placeholder:'Enter subject', options:[], order:2, col_span:12, conditions:[], conditions_logic:'AND'}
+];
+
+let fields = SEED.length ? JSON.parse(JSON.stringify(SEED)) : JSON.parse(JSON.stringify(DEFAULT_FIELDS));
 
 fields.forEach(f => {
-  if (!f.col_span) f.col_span = 12;
+  if (!f.col_span)    f.col_span    = 12;
+  if (!f.conditions)  f.conditions  = [];
+  // Initialize each condition with operator if missing
+  f.conditions.forEach((cond, i) => {
+    if (!cond.operator) cond.operator = 'AND';
+  });
+  if (!f.conditions_logic)
+    f.conditions_logic = 'AND';   // kept for backwards compatibility
   if (f.type === 'file') {
-    if (!f.file_label)      f.file_label      = 'Attachments';
-    if (!f.allowed_types)   f.allowed_types   = [];
-    if (!f.max_files)       f.max_files       = 1;
-    if (!f.max_size_value)  f.max_size_value  = null;
-    if (!f.max_size_unit)   f.max_size_unit   = 'MB';
-  }
-  if (f.type === 'select' || f.type === 'radio') {
-    if (!f.option_mode)        f.option_mode        = 'plain';
-    if (!f.tree)               f.tree               = [];
-    if (!f.child_field_name)   f.child_field_name   = '';
+    if (!f.file_label)     f.file_label     = 'Attachments';
+    if (!f.allowed_types)  f.allowed_types  = [];
+    if (!f.max_files)      f.max_files      = 1;
+    if (!f.max_size_value) f.max_size_value = null;
+    if (!f.max_size_unit)  f.max_size_unit  = 'MB';
   }
 });
 
@@ -411,10 +691,130 @@ const FILE_TYPES = [
   { label: 'Any',    value: '*' },
 ];
 
-// ── render builder ──────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// MODAL SYSTEM
+// ════════════════════════════════════════════════════════════════════════════
+
+let modalState = { type: null, callback: null, selectedIndex: -1, searchable: false, allItems: [] };
+
+function showAlertModal(title, message) {
+  document.getElementById('alertTitle').textContent = title;
+  document.getElementById('alertMessage').textContent = message;
+  document.getElementById('alertModal').classList.add('active');
+}
+
+function closeAlertModal() {
+  document.getElementById('alertModal').classList.remove('active');
+}
+
+function showSelectionModal(title, items, searchable = false) {
+  return new Promise((resolve) => {
+    document.getElementById('selectionTitle').textContent = title;
+    const list = document.getElementById('selectionList');
+    const searchInput = document.getElementById('searchInput');
+    
+    list.innerHTML = '';
+    modalState.selectedIndex = -1;
+    modalState.searchable = searchable;
+    modalState.allItems = items;
+    
+    items.forEach((item, idx) => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      li.dataset.index = idx;
+      li.onclick = () => {
+        document.querySelectorAll('#selectionList li').forEach(el => el.classList.remove('selected'));
+        li.classList.add('selected');
+        modalState.selectedIndex = idx;
+        document.getElementById('selectionConfirmBtn').disabled = false;
+      };
+      list.appendChild(li);
+    });
+    
+    // Show/hide search input - always show if searchable
+    if (searchable) {
+      searchInput.style.display = 'block';
+      searchInput.value = '';
+      searchInput.focus();
+    } else {
+      searchInput.style.display = 'none';
+    }
+    
+    modalState.callback = resolve;
+    document.getElementById('selectionModal').classList.add('active');
+  });
+}
+
+function filterSelectionList(query) {
+  const items = document.querySelectorAll('#selectionList li');
+  const lowerQuery = query.toLowerCase();
+  
+  items.forEach(item => {
+    const text = item.textContent.toLowerCase();
+    if (text.includes(lowerQuery)) {
+      item.classList.remove('hidden');
+    } else {
+      item.classList.add('hidden');
+    }
+  });
+}
+
+function closeSelectionModal() {
+  document.getElementById('selectionModal').classList.remove('active');
+  if (modalState.callback) {
+    modalState.callback(-1);
+    modalState.callback = null;
+  }
+}
+
+function confirmSelection() {
+  document.getElementById('selectionModal').classList.remove('active');
+  if (modalState.callback) {
+    modalState.callback(modalState.selectedIndex);
+    modalState.callback = null;
+  }
+}
+
+function showConfirmModal(title, message) {
+  return new Promise((resolve) => {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    modalState.callback = resolve;
+    document.getElementById('confirmModal').classList.add('active');
+  });
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirmModal').classList.remove('active');
+  if (modalState.callback) {
+    modalState.callback(false);
+    modalState.callback = null;
+  }
+}
+
+function confirmAction() {
+  document.getElementById('confirmModal').classList.remove('active');
+  if (modalState.callback) {
+    modalState.callback(true);
+    modalState.callback = null;
+  }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── generate a stable temp id for new fields ──────────────────────────────────
+function tempId() {
+  return 'tmp_' + Math.random().toString(36).slice(2, 9);
+}
+
+// ── render builder ────────────────────────────────────────────────────────────
 function render() {
   const list = document.getElementById('fieldList');
   list.innerHTML = '';
+  // Ensure every field has an id (needed for condition references)
+  fields.forEach(f => { if (!f.id) f.id = tempId(); });
   fields.forEach((f, i) => list.appendChild(buildCard(f, i)));
   const n = fields.length;
   document.getElementById('fieldCount').textContent = n === 1 ? '1 field' : `${n} fields`;
@@ -431,19 +831,18 @@ function buildCard(f, idx) {
   ).join('');
 
   const hasOpts = ['select','radio','checkbox'].includes(f.type);
-  const optVal  = Array.isArray(f.options) ? f.options.join('\n') : (f.options || '');
   const span    = f.col_span || 12;
 
   const colLabels = { 3: '¼', 4: '⅓', 6: '½', 8: '⅔', 12: 'Full' };
   const colBtns = [3, 4, 6, 8, 12].map(v =>
     `<button type="button" class="col-btn${span === v ? ' active' : ''}"
-      onclick="upd(${idx}, 'col_span', ${v})">${colLabels[v]}</button>`
+      onclick="updNoRender(${idx}, 'col_span', ${v}); render()">${colLabels[v]}</button>`
   ).join('');
 
   const spanLabel = { 3: '1/4', 4: '1/3', 6: 'Half', 8: '2/3', 12: 'Full row' }[span] || 'Full row';
-
-  const fileConfig       = f.type === 'file'                         ? buildFileConfig(f, idx)   : '';
-  const selectConfig     = (f.type === 'select' || f.type === 'radio') ? buildSelectConfig(f, idx) : '';
+  const fileConfig   = f.type === 'file' ? buildFileConfig(f, idx) : '';
+  const optsPills    = hasOpts ? buildOptsPills(f, idx) : '';
+  const condSection  = buildConditionsSection(f, idx);
 
   div.innerHTML = `
     <div class="flex items-start gap-3">
@@ -456,33 +855,26 @@ function buildCard(f, idx) {
         <div class="flex items-center gap-2">
           <input type="text" class="inp flex-1 font-medium" placeholder="Field label *"
             value="${esc(f.label || '')}"
-            onchange="upd(${idx}, 'label', this.value)">
-          <select class="inp w-32 shrink-0" onchange="changeType(${idx}, this.value)">${typeOpts}</select>
+            oninput="updNoRender(${idx}, 'label', this.value); schedulePreview()">
+          <select class="inp w-36 shrink-0" onchange="changeType(${idx}, this.value)">${typeOpts}</select>
           <label class="flex items-center gap-1.5 text-xs text-muted cursor-pointer whitespace-nowrap select-none">
             <input type="checkbox" class="w-3.5 h-3.5 accent-gray-900"
               ${f.required ? 'checked' : ''}
-              onchange="upd(${idx}, 'required', this.checked)">
+              onchange="updNoRender(${idx}, 'required', this.checked); schedulePreview()">
             Required
           </label>
         </div>
         <input type="text" class="inp text-muted" placeholder="Placeholder text (optional)"
           value="${esc(f.placeholder || '')}"
-          onchange="upd(${idx}, 'placeholder', this.value)">
-        ${hasOpts ? `
-          <div>
-            <p class="text-xs text-muted mb-1">Options — one per line</p>
-            <textarea class="inp resize-y" rows="3"
-              placeholder="Option A&#10;Option B&#10;Option C"
-              onchange="updOptions(${idx}, this.value)"
-            >${esc(optVal)}</textarea>
-          </div>` : ''}
+          oninput="updNoRender(${idx}, 'placeholder', this.value); schedulePreview()">
+        ${optsPills}
         ${fileConfig}
-        ${selectConfig}
         <div class="flex items-center gap-2 pt-1 border-t border-gray-100">
           <span class="text-[11px] text-muted font-medium uppercase tracking-wide mr-1">Width</span>
           ${colBtns}
           <span class="text-[11px] text-gray-400 ml-auto">${spanLabel}</span>
         </div>
+        ${condSection}
       </div>
       <button type="button" onclick="removeField(${idx})"
         class="text-gray-300 hover:text-red-400 transition shrink-0 mt-0.5">
@@ -492,15 +884,24 @@ function buildCard(f, idx) {
       </button>
     </div>`;
 
-  div.addEventListener('dragstart', e => { e.dataTransfer.setData('idx', idx); div.classList.add('opacity-40'); });
+  // Field-level drag-to-reorder
+  div.addEventListener('dragstart', e => {
+    if (e.target.closest('.opt-pill')) return;
+    e.dataTransfer.setData('fieldIdx', idx);
+    div.classList.add('opacity-40');
+  });
   div.addEventListener('dragend', () => div.classList.remove('opacity-40'));
-  div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('drag-over'); });
+  div.addEventListener('dragover', e => {
+    if (e.dataTransfer.types.includes('fieldidx') || e.dataTransfer.types.includes('fieldIdx'.toLowerCase())) {
+      e.preventDefault(); div.classList.add('drag-over');
+    }
+  });
   div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
   div.addEventListener('drop', e => {
     e.preventDefault();
     div.classList.remove('drag-over');
-    const from = parseInt(e.dataTransfer.getData('idx'));
-    if (from === idx) return;
+    const from = parseInt(e.dataTransfer.getData('fieldIdx'));
+    if (isNaN(from) || from === idx) return;
     const [item] = fields.splice(from, 1);
     fields.splice(idx, 0, item);
     fields.forEach((f, i) => f.order = i);
@@ -510,11 +911,266 @@ function buildCard(f, idx) {
   return div;
 }
 
-// ── file config block ───────────────────────────────────────────────────────
+// ── CONDITIONS SECTION ────────────────────────────────────────────────────────
+function buildConditionsSection(f, idx) {
+  const conditions = Array.isArray(f.conditions) ? f.conditions : [];
+  const hasConditions = conditions.length > 0;
+
+  // Candidate parent fields: select/radio/checkbox that aren't this field
+  const parents = fields.filter((pf, pi) => pi !== idx && PARENT_TYPES.has(pf.type));
+
+  // Rows
+  let rowsHtml = '';
+  conditions.forEach((cond, ci) => {
+    rowsHtml += buildConditionRow(cond, idx, ci, parents);
+  });
+
+  const toggleClass = `conditions-toggle${hasConditions ? ' has-conditions' : ''}${hasConditions ? ' open' : ''}`;
+  const bodyClass   = `conditions-body`; // starts closed; JS toggles
+
+  const parentCount = parents.length;
+  const noParentsNote = parentCount === 0
+    ? `<p class="text-[11px] text-gray-400 italic mt-1">Add a select, radio, or checkbox field above this one to enable branching.</p>`
+    : '';
+
+  return `
+    <div class="conditions-section" id="cond-section-${idx}">
+      <button type="button"
+        class="${toggleClass}"
+        id="cond-toggle-${idx}"
+        onclick="toggleConditions(${idx})">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+        Show if…
+        ${hasConditions ? `<span style="font-size:10px;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;border-radius:4px;padding:1px 6px;margin-left:2px">${conditions.length} condition${conditions.length > 1 ? 's' : ''}</span>` : ''}
+      </button>
+      <div class="${bodyClass}${hasConditions ? ' open' : ''}" id="cond-body-${idx}">
+        ${noParentsNote}
+        <div id="cond-rows-${idx}" class="mt-2 space-y-1">
+          ${rowsHtml}
+        </div>
+        ${parentCount > 0 ? `<button type="button" class="condition-add-btn mt-1" onclick="addCondition(${idx})">+ add condition</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildConditionRow(cond, fieldIdx, condIdx, parents) {
+  // Parent field picker
+  const fieldOpts = parents.map(pf =>
+    `<option value="${esc(pf.id)}" ${cond.field_id === pf.id ? 'selected' : ''}>${esc(pf.label || '(unlabelled)')}</option>`
+  ).join('');
+
+  // Value picker — options from the selected parent
+  const selectedParent = parents.find(pf => pf.id === cond.field_id);
+  const parentOpts = selectedParent && Array.isArray(selectedParent.options)
+    ? selectedParent.options.map(o =>
+        `<option value="${esc(o)}" ${cond.value === o ? 'selected' : ''}>${esc(o)}</option>`
+      ).join('')
+    : '';
+
+  // Individual operator for this condition (except first one) - styled as badge
+  const operator = cond.operator || 'AND';
+  const operatorBadge = condIdx > 0
+    ? `<select onchange="setConditionOperator(${fieldIdx}, ${condIdx}, this.value)"
+        class="condition-operator"
+        style="font-size:10px;font-weight:700;color:#fff;background:#0b0380;border:1px solid #0b0380;border-radius:4px;padding:2px 6px;cursor:pointer">
+        <option value="AND" ${operator === 'AND' ? 'selected' : ''} style="background:#fff;color:#111">AND</option>
+        <option value="OR" ${operator === 'OR' ? 'selected' : ''} style="background:#fff;color:#111">OR</option>
+      </select>`
+    : '';
+
+  return `
+    <div class="condition-row" id="cond-row-${fieldIdx}-${condIdx}">
+      ${operatorBadge}
+      <select onchange="setConditionField(${fieldIdx}, ${condIdx}, this.value)"
+        style="flex:1.2">
+        <option value="">— pick field —</option>
+        ${fieldOpts}
+      </select>
+      <span class="condition-eq">=</span>
+      <select onchange="setConditionValue(${fieldIdx}, ${condIdx}, this.value)"
+        style="flex:1" id="cond-val-sel-${fieldIdx}-${condIdx}">
+        <option value="">— pick value —</option>
+        ${parentOpts}
+      </select>
+      <button type="button" class="condition-remove"
+        onclick="removeCondition(${fieldIdx}, ${condIdx})">×</button>
+    </div>`;
+}
+
+function toggleConditions(idx) {
+  const toggle = document.getElementById(`cond-toggle-${idx}`);
+  const body   = document.getElementById(`cond-body-${idx}`);
+  if (!body) return;
+  const isOpen = body.classList.contains('open');
+  if (isOpen) {
+    body.classList.remove('open');
+    toggle.classList.remove('open');
+  } else {
+    body.classList.add('open');
+    toggle.classList.add('open');
+  }
+}
+
+function addCondition(idx) {
+  if (!fields[idx].conditions) fields[idx].conditions = [];
+  fields[idx].conditions.push({ field_id: '', value: '', operator: 'AND' });
+  render();
+  // Re-open the section
+  setTimeout(() => {
+    const body   = document.getElementById(`cond-body-${idx}`);
+    const toggle = document.getElementById(`cond-toggle-${idx}`);
+    if (body && !body.classList.contains('open')) {
+      body.classList.add('open');
+      toggle.classList.add('open');
+    }
+  }, 10);
+}
+
+function removeCondition(fieldIdx, condIdx) {
+  fields[fieldIdx].conditions.splice(condIdx, 1);
+  render();
+  // Keep section open
+  setTimeout(() => {
+    const body   = document.getElementById(`cond-body-${fieldIdx}`);
+    const toggle = document.getElementById(`cond-toggle-${fieldIdx}`);
+    if (body) { body.classList.add('open'); toggle.classList.add('open'); }
+  }, 10);
+}
+
+function setConditionField(fieldIdx, condIdx, parentFieldId) {
+  fields[fieldIdx].conditions[condIdx].field_id = parentFieldId;
+  fields[fieldIdx].conditions[condIdx].value    = ''; // reset value when field changes
+  render();
+  setTimeout(() => {
+    const body   = document.getElementById(`cond-body-${fieldIdx}`);
+    const toggle = document.getElementById(`cond-toggle-${fieldIdx}`);
+    if (body) { body.classList.add('open'); toggle.classList.add('open'); }
+  }, 10);
+}
+
+function setConditionValue(fieldIdx, condIdx, val) {
+  fields[fieldIdx].conditions[condIdx].value = val;
+  schedulePreview();
+}
+
+function setConditionOperator(fieldIdx, condIdx, operator) {
+  fields[fieldIdx].conditions[condIdx].operator = operator;
+  schedulePreview();
+}
+
+function setConditionLogic(fieldIdx, value) {
+  fields[fieldIdx].conditions_logic = value;
+  schedulePreview();
+}
+
+// ── OPTIONS PILL EDITOR ───────────────────────────────────────────────────────
+function buildOptsPills(f, idx) {
+  const opts = Array.isArray(f.options) ? f.options : [];
+  const pills = opts.map((o, oi) => `
+    <div class="opt-pill" draggable="true"
+      data-field-idx="${idx}" data-opt-idx="${oi}"
+      ondragstart="optPillDragStart(event,${idx},${oi})"
+      ondragover="optPillDragOver(event)"
+      ondragleave="optPillDragLeave(event)"
+      ondrop="optPillDrop(event,${idx},${oi})">
+      <span style="color:#ccc;font-size:11px;margin-right:2px;cursor:grab">⠿</span>
+      <span contenteditable="true" spellcheck="false"
+        onblur="optPillEdit(${idx},${oi},this.textContent)"
+        onkeydown="optPillKeydown(event,${idx},${oi})"
+        style="outline:none;min-width:20px">${esc(o)}</span>
+      <button type="button" class="opt-pill-remove" onclick="optPillRemove(${idx},${oi})">×</button>
+    </div>`).join('');
+
+  return `
+    <div>
+      <div class="flex items-center justify-between mb-1.5">
+      <p class="text-xs text-muted font-medium">Options</p>
+      <button type="button" onclick="importOptions(${idx})" style="font-size:11px">Import</button>
+    </div>
+      <div class="opt-pills-wrap" id="opt-pills-${idx}">
+        ${pills}
+        <input type="text" class="opt-pill-add" placeholder="+ add option"
+          id="opt-pill-add-${idx}"
+          onkeydown="optPillAddKeydown(event,${idx})"
+          onblur="optPillAddBlur(event,${idx})">
+      </div>
+    </div>`;
+}
+
+function optPillDragStart(e, fieldIdx, optIdx) {
+  e.stopPropagation();
+  e.dataTransfer.setData('optFieldIdx', fieldIdx);
+  e.dataTransfer.setData('optIdx', optIdx);
+  e.currentTarget.style.opacity = '0.4';
+}
+function optPillDragOver(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('drag-over-pill'); }
+function optPillDragLeave(e) { e.currentTarget.classList.remove('drag-over-pill'); }
+function optPillDrop(e, fieldIdx, toIdx) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over-pill');
+  const fromFieldIdx = parseInt(e.dataTransfer.getData('optFieldIdx'));
+  const fromIdx      = parseInt(e.dataTransfer.getData('optIdx'));
+  if (fromFieldIdx !== fieldIdx || fromIdx === toIdx) return;
+  const opts = [...fields[fieldIdx].options];
+  const [item] = opts.splice(fromIdx, 1);
+  opts.splice(toIdx, 0, item);
+  fields[fieldIdx].options = opts;
+  render();
+}
+function optPillEdit(fieldIdx, optIdx, val) {
+  const trimmed = val.trim();
+  if (!trimmed) { optPillRemove(fieldIdx, optIdx); return; }
+  const old = fields[fieldIdx].options[optIdx];
+  fields[fieldIdx].options[optIdx] = trimmed;
+  // Update any conditions referencing this option value
+  if (old !== trimmed) {
+    fields.forEach(f => {
+      (f.conditions || []).forEach(c => {
+        if (c.field_id === fields[fieldIdx].id && c.value === old) c.value = trimmed;
+      });
+    });
+  }
+  schedulePreview();
+}
+function optPillKeydown(e, fieldIdx, optIdx) {
+  if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+  if (e.key === 'Backspace' && e.currentTarget.textContent.trim() === '') {
+    e.preventDefault(); optPillRemove(fieldIdx, optIdx);
+  }
+}
+function optPillRemove(fieldIdx, optIdx) {
+  fields[fieldIdx].options.splice(optIdx, 1);
+  render();
+}
+function optPillAddKeydown(e, fieldIdx) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.currentTarget.value.trim();
+    if (val) { addOption(fieldIdx, val); e.currentTarget.value = ''; }
+  }
+}
+function optPillAddBlur(e, fieldIdx) {
+  const val = e.currentTarget.value.trim();
+  if (val) { addOption(fieldIdx, val); e.currentTarget.value = ''; }
+}
+function addOption(fieldIdx, val) {
+  if (!fields[fieldIdx].options) fields[fieldIdx].options = [];
+  fields[fieldIdx].options.push(val);
+  render();
+  setTimeout(() => {
+    const inp = document.getElementById(`opt-pill-add-${fieldIdx}`);
+    if (inp) inp.focus();
+  }, 20);
+}
+
+// ── file config ───────────────────────────────────────────────────────────────
 function buildFileConfig(f, idx) {
   const allowed  = Array.isArray(f.allowed_types) ? f.allowed_types : [];
   const maxFiles = f.max_files || 1;
-  const sizeVal  = f.max_size_value || '';
+  const sizeVal  = f.max_size_value || '10';
   const sizeUnit = f.max_size_unit  || 'MB';
 
   const pills = FILE_TYPES.map(t => {
@@ -529,7 +1185,6 @@ function buildFileConfig(f, idx) {
   const countOpts = [1,2,3,4,5,6,7,8,9,10].map(n =>
     `<option value="${n}" ${maxFiles === n ? 'selected' : ''}>${n}</option>`
   ).join('');
-
   const unitOpts = ['KB','MB','GB'].map(u =>
     `<option value="${u}" ${sizeUnit === u ? 'selected' : ''}>${u}</option>`
   ).join('');
@@ -540,7 +1195,7 @@ function buildFileConfig(f, idx) {
         <p class="text-xs text-muted font-medium mb-1.5">Button label</p>
         <input type="text" class="inp" placeholder="Attachments"
           value="${esc(f.file_label || 'Attachments')}"
-          onchange="upd(${idx}, 'file_label', this.value)">
+          oninput="updNoRender(${idx}, 'file_label', this.value); schedulePreview()">
       </div>
       <div>
         <p class="text-xs text-muted font-medium mb-1.5">Allowed file types</p>
@@ -549,7 +1204,7 @@ function buildFileConfig(f, idx) {
       <div class="flex gap-3">
         <div class="flex-1">
           <p class="text-xs text-muted font-medium mb-1.5">Max attachments</p>
-          <select class="inp" onchange="upd(${idx}, 'max_files', parseInt(this.value))">
+          <select class="inp" onchange="updNoRender(${idx}, 'max_files', parseInt(this.value)); schedulePreview()">
             ${countOpts}
           </select>
         </div>
@@ -558,9 +1213,9 @@ function buildFileConfig(f, idx) {
           <div class="flex gap-1.5">
             <input type="number" class="inp" min="1" placeholder="e.g. 10"
               value="${sizeVal}"
-              onchange="upd(${idx}, 'max_size_value', this.value ? parseInt(this.value) : null)">
+              oninput="updNoRender(${idx}, 'max_size_value', this.value ? parseInt(this.value) : null); schedulePreview()">
             <select class="inp shrink-0" style="width:68px"
-              onchange="upd(${idx}, 'max_size_unit', this.value)">
+              onchange="updNoRender(${idx}, 'max_size_unit', this.value); schedulePreview()">
               ${unitOpts}
             </select>
           </div>
@@ -569,269 +1224,69 @@ function buildFileConfig(f, idx) {
     </div>`;
 }
 
-// ── select / radio config block ─────────────────────────────────────────────
-function buildSelectConfig(f, idx) {
-  const mode = f.option_mode || 'plain';
+// ── mutations ─────────────────────────────────────────────────────────────────
+function updNoRender(idx, key, val) { fields[idx][key] = val; }
 
-  const modePills = [
-    { value: 'plain',    label: 'Plain list' },
-    { value: 'cascade',  label: 'Cascading' },
-    { value: 'import',   label: 'Import from form' },
-  ].map(p => `
-    <label class="opt-mode-pill${mode === p.value ? ' active' : ''}">
-      <input type="radio" name="opt_mode_${idx}" value="${p.value}"
-        ${mode === p.value ? 'checked' : ''}
-        onchange="setOptionMode(${idx}, '${p.value}')"
-        style="display:none">
-      ${p.label}
-    </label>`
-  ).join('');
-
-  let modeBody = '';
-
-  if (mode === 'cascade') {
-    modeBody = buildCascadeEditor(f, idx);
-  } else if (mode === 'import') {
-    modeBody = buildImportSelector(f, idx);
-  }
-
-  return `
-    <div class="space-y-3 pt-2 border-t border-gray-100">
-      <div>
-        <p class="text-xs text-muted font-medium mb-1.5">Options mode</p>
-        <div class="flex flex-wrap gap-1.5">${modePills}</div>
-      </div>
-      ${modeBody}
-    </div>`;
+let previewTimer = null;
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(renderPreview, 80);
 }
 
-// ── cascade tree editor ──────────────────────────────────────────────────────
-function buildCascadeEditor(f, idx) {
-  const childFieldName = f.child_field_name || '';
-  const rootLabels     = Array.isArray(f.options) ? f.options : [];
-
-  // Reconcile tree against current root options and write back to fields[idx].tree
-  // so that all index-based mutations (updTreeChild, addTreeChild, removeTreeChild)
-  // always target the exact same array that the DOM was built from.
-  const liveTree = rootLabels.map(label => {
-    const existing = Array.isArray(fields[idx].tree)
-      ? fields[idx].tree.find(n => n.label === label)
-      : null;
-    return existing || { label, children: [] };
+function addField() {
+  fields.push({
+    id: tempId(),
+    label: '', type: 'text', required: false,
+    placeholder: '', options: [], order: fields.length, col_span: 12,
+    file_label: 'Attachments', allowed_types: [], max_files: 1,
+    max_size_value: null, max_size_unit: 'MB',
+    conditions: [],
+    conditions_logic: 'AND',
   });
-  fields[idx].tree = liveTree;
-
-  const treeItems = liveTree.map((node, ni) => {
-    const children = Array.isArray(node.children) ? node.children : [];
-    const childRows = children.map((c, ci) => `
-      <div class="cascade-child-row">
-        <span class="text-gray-300 text-xs">↳</span>
-        <input class="cascade-child-inp"
-          value="${esc(c.label)}"
-          placeholder="Child option"
-          oninput="updTreeChild(${idx}, ${ni}, ${ci}, this.value)">
-        <button type="button" class="cascade-remove-btn"
-          onclick="removeTreeChild(${idx}, ${ni}, ${ci})">×</button>
-      </div>`).join('');
-
-    return `
-      <div class="cascade-root-item">
-        <div class="cascade-root-header" onclick="toggleCascadeNode(this)">
-          <span class="cascade-chevron">▶</span>
-          <span class="cascade-root-label">${esc(node.label)}</span>
-          <span class="text-xs text-gray-400">${children.length} child${children.length !== 1 ? 'ren' : ''}</span>
-        </div>
-        <div class="cascade-children-wrap">
-          ${childRows}
-          <button type="button" class="cascade-add-child-btn"
-            onclick="addTreeChild(${idx}, ${ni})">+ add child</button>
-        </div>
-      </div>`;
-  }).join('');
-
-  const noRoots = rootLabels.length === 0
-    ? `<p class="text-xs text-gray-400 italic">Add options in the textarea above — they'll appear here as root nodes.</p>`
-    : '';
-
-  return `
-    <div>
-      <p class="text-xs text-muted font-medium mb-1">Child field label</p>
-      <input type="text" class="inp" placeholder="e.g. Subcategory, Time slot…"
-        value="${esc(childFieldName)}"
-        oninput="upd(${idx}, 'child_field_name', this.value)">
-      <p class="text-[11px] text-gray-400 mt-1 mb-2">
-        When a user picks a root option, a new <em>${esc(childFieldName || 'child')}</em> field appears with that option's children.
-      </p>
-      <div class="cascade-tree">
-        ${noRoots}
-        ${treeItems}
-      </div>
-    </div>`;
+  render();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#fieldList .field-card input[type=text]');
+    if (inputs.length >= 2) inputs[inputs.length - 2].focus();
+  }, 50);
 }
 
-// ── import selector ──────────────────────────────────────────────────────────
-function buildImportSelector(f, idx) {
-  if (!OTHER_FORMS.length) {
-    return `<p class="text-xs text-gray-400 italic">No other published forms available to import from.</p>`;
-  }
-
-  const formOpts = OTHER_FORMS.map(of =>
-    `<option value="${of.id}">${esc(of.name)}</option>`
-  ).join('');
-
-  // fields from selected form that are select/radio
-  const selectedFormId = f._import_form_id || '';
-  let fieldOpts = '<option value="">— pick a form first —</option>';
-  if (selectedFormId) {
-    const srcForm = OTHER_FORMS.find(of => String(of.id) === String(selectedFormId));
-    if (srcForm) {
-      const eligible = (srcForm.fields || []).filter(sf =>
-        sf.type === 'select' || sf.type === 'radio'
-      );
-      if (eligible.length) {
-        fieldOpts = eligible.map(sf =>
-          `<option value="${sf.id}">${esc(sf.label)}</option>`
-        ).join('');
-      } else {
-        fieldOpts = '<option value="">No select/radio fields in this form</option>';
-      }
-    }
-  }
-
-  return `
-    <div class="space-y-2">
-      <div>
-        <p class="text-xs text-muted font-medium mb-1">Source form</p>
-        <select class="inp" onchange="setImportForm(${idx}, this.value)">
-          <option value="">Select a form…</option>
-          ${formOpts}
-        </select>
-      </div>
-      <div id="import-field-wrap-${idx}">
-        <p class="text-xs text-muted font-medium mb-1">Source field</p>
-        <select class="inp" id="import-field-sel-${idx}"
-          onchange="setImportField(${idx}, this.value)">
-          ${fieldOpts}
-        </select>
-      </div>
-      <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none mt-1">
-        <input type="checkbox" class="w-3.5 h-3.5 accent-gray-900"
-          id="import-children-chk-${idx}"
-          ${f._import_with_children ? 'checked' : ''}
-          onchange="upd(${idx}, '_import_with_children', this.checked)">
-        Also import child options (cascade tree)
-      </label>
-      <button type="button"
-        class="text-xs font-medium px-4 py-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-white hover:border-gray-400 transition"
-        onclick="doImport(${idx})">
-        Apply import ↓
-      </button>
-      <p class="text-[11px] text-gray-400">
-        This copies options into the textarea above. You can edit them freely after importing.
-      </p>
-    </div>`;
-}
-
-// ── cascade node toggle ──────────────────────────────────────────────────────
-function toggleCascadeNode(header) {
-  const chev = header.querySelector('.cascade-chevron');
-  const wrap = header.nextElementSibling;
-  const open = wrap.classList.toggle('open');
-  chev.classList.toggle('open', open);
-}
-
-// ── option mode ──────────────────────────────────────────────────────────────
-function setOptionMode(idx, mode) {
-  fields[idx].option_mode = mode;
-  if (mode === 'cascade' && !fields[idx].tree) fields[idx].tree = [];
+function removeField(idx) {
+  const removedId = fields[idx].id;
+  fields.splice(idx, 1);
+  fields.forEach((f, i) => {
+    f.order = i;
+    // Clean up conditions referencing the removed field
+    f.conditions = (f.conditions || []).filter(c => c.field_id !== removedId);
+  });
   render();
 }
 
-// ── options textarea handler — also syncs tree root labels ──────────────────
-function updOptions(idx, raw) {
-  const opts = raw.split('\n').map(s => s.trim()).filter(Boolean);
-  fields[idx].options = opts;
-
-  // keep tree root entries in sync so builder stays consistent
-  if (fields[idx].option_mode === 'cascade') {
-    const existingTree = Array.isArray(fields[idx].tree) ? fields[idx].tree : [];
-    fields[idx].tree = opts.map(label => {
-      const ex = existingTree.find(n => n.label === label);
-      return ex || { label, children: [] };
+function changeType(idx, val) {
+  fields[idx].type = val;
+  if (val === 'file') {
+    if (!fields[idx].file_label)    fields[idx].file_label    = 'Attachments';
+    if (!fields[idx].allowed_types) fields[idx].allowed_types = [];
+    if (!fields[idx].max_files)     fields[idx].max_files     = 1;
+    if (!fields[idx].max_size_unit) fields[idx].max_size_unit = 'MB';
+  }
+  // If type is no longer a valid parent, remove conditions on other fields referencing this one
+  if (!PARENT_TYPES.has(val)) {
+    const thisId = fields[idx].id;
+    fields.forEach((f, fi) => {
+      if (fi !== idx) {
+        f.conditions = (f.conditions || []).filter(c => c.field_id !== thisId);
+      }
     });
   }
   render();
 }
 
-// ── tree mutations ────────────────────────────────────────────────────────────
-function updTreeChild(fieldIdx, nodeIdx, childIdx, val) {
-  // Direct mutation into fields — no re-render needed since oninput fires
-  // on every keystroke and the DOM input already reflects the typed value.
-  fields[fieldIdx].tree[nodeIdx].children[childIdx].label = val;
-}
-
-function addTreeChild(fieldIdx, nodeIdx) {
-  if (!Array.isArray(fields[fieldIdx].tree[nodeIdx].children))
-    fields[fieldIdx].tree[nodeIdx].children = [];
-  fields[fieldIdx].tree[nodeIdx].children.push({ label: '' });
-  render();
-}
-
-function removeTreeChild(fieldIdx, nodeIdx, childIdx) {
-  fields[fieldIdx].tree[nodeIdx].children.splice(childIdx, 1);
-  render();
-}
-
-// ── import helpers ────────────────────────────────────────────────────────────
-function setImportForm(idx, formId) {
-  fields[idx]._import_form_id  = formId;
-  fields[idx]._import_field_id = '';
-  render();
-}
-
-function setImportField(idx, fieldId) {
-  fields[idx]._import_field_id = fieldId;
-}
-
-function doImport(idx) {
-  const formId  = fields[idx]._import_form_id;
-  const fieldId = fields[idx]._import_field_id
-                  || document.getElementById(`import-field-sel-${idx}`)?.value;
-  const withChildren = fields[idx]._import_with_children;
-
-  if (!formId || !fieldId) {
-    alert('Please select a form and a field to import from.');
-    return;
-  }
-
-  const srcForm  = OTHER_FORMS.find(of => String(of.id) === String(formId));
-  const srcField = srcForm && (srcForm.fields || []).find(sf => String(sf.id) === String(fieldId));
-  if (!srcField) { alert('Source field not found.'); return; }
-
-  // Copy flat options
-  const opts = Array.isArray(srcField.options) ? [...srcField.options] : [];
-  fields[idx].options = opts;
-
-  if (withChildren && srcField.cascade && Array.isArray(srcField.tree) && srcField.tree.length) {
-    fields[idx].option_mode      = 'cascade';
-    fields[idx].tree             = JSON.parse(JSON.stringify(srcField.tree));
-    fields[idx].child_field_name = srcField.child_field_name || '';
-  }
-
-  render();
-}
-
-// ── file helpers ──────────────────────────────────────────────────────────────
 function toggleFileType(idx, val, checked) {
   let allowed = Array.isArray(fields[idx].allowed_types) ? [...fields[idx].allowed_types] : [];
   if (checked) { if (!allowed.includes(val)) allowed.push(val); }
   else           allowed = allowed.filter(v => v !== val);
   fields[idx].allowed_types = allowed;
   render();
-}
-
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
 
 // ── preview ───────────────────────────────────────────────────────────────────
@@ -855,7 +1310,7 @@ function renderPreview() {
     return;
   }
 
-  fields.forEach(f => {
+  fields.forEach((f, fi) => {
     const span = f.col_span || 12;
     const wrap = document.createElement('div');
     wrap.style.gridColumn = `span ${span}`;
@@ -863,29 +1318,29 @@ function renderPreview() {
     const label       = f.label || 'Untitled field';
     const placeholder = f.placeholder || '';
     const type        = f.type || 'text';
+    const hasConditions = Array.isArray(f.conditions) && f.conditions.some(c => c.field_id && c.value);
+
+    if (hasConditions) wrap.classList.add('preview-field-conditional');
 
     let inputHtml = '';
+
     if (type === 'textarea') {
       inputHtml = `<textarea class="preview-inp" rows="3" placeholder="${esc(placeholder)}" disabled></textarea>`;
+
     } else if (type === 'select') {
       const opts = Array.isArray(f.options) && f.options.length
-        ? f.options.map(o => `<option>${esc(o)}</option>`).join('')
-        : '';
-      const cascadeBadge = f.option_mode === 'cascade' && f.child_field_name
-        ? `<p style="font-size:11px;color:#999;margin-top:3px">↳ reveals <em>${esc(f.child_field_name)}</em> field on select</p>`
-        : '';
+        ? f.options.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('') : '';
       inputHtml = `<select class="preview-inp" disabled>
-        <option>Select an option</option>${opts}
-      </select>${cascadeBadge}`;
+        <option value="">Select an option</option>${opts}
+      </select>`;
+
     } else if (type === 'radio' || type === 'checkbox') {
       const opts = Array.isArray(f.options) && f.options.length ? f.options : ['Option A', 'Option B'];
-      const cascadeBadge = f.option_mode === 'cascade' && f.child_field_name
-        ? `<p style="font-size:11px;color:#999;margin-top:3px">↳ reveals <em>${esc(f.child_field_name)}</em> field on pick</p>`
-        : '';
       inputHtml = `<div class="space-y-1.5 mt-0.5">${opts.map(o =>
         `<label class="flex items-center gap-2 text-xs text-gray-500 cursor-default">
           <input type="${type}" disabled class="w-3 h-3 accent-gray-400"> ${esc(o)}
-        </label>`).join('')}</div>${cascadeBadge}`;
+        </label>`).join('')}</div>`;
+
     } else if (type === 'file') {
       const btnLabel = f.file_label || 'Attachments';
       const maxF     = f.max_files || 1;
@@ -895,114 +1350,154 @@ function renderPreview() {
         ? f.allowed_types.filter(t => t !== '*').map(t => {
             const match = FILE_TYPES.find(ft => ft.value === t);
             return match ? match.label : t;
-          }).join(', ')
-        : 'Any';
+          }).join(', ') : 'Any';
       const hint = [
         allowed !== 'Any' ? allowed : null,
         sizeVal ? `max ${sizeVal}${sizeUnit}` : null,
         maxF > 1 ? `up to ${maxF} files` : null,
       ].filter(Boolean).join(' · ');
-
       inputHtml = `
-        <div class="preview-inp flex items-center gap-0 overflow-hidden p-0" style="padding:0">
+        <div class="preview-inp flex items-center overflow-hidden p-0" style="padding:0">
           <span style="padding:7px 12px;background:#f0f0ec;border-right:1px solid #e2e2de;font-size:12px;white-space:nowrap;color:#555">${esc(btnLabel)}</span>
           <span style="padding:7px 10px;font-size:12px;color:#ccc">No file chosen</span>
         </div>
         ${hint ? `<p style="font-size:11px;color:#aaa;margin-top:4px">${esc(hint)}</p>` : ''}`;
+
     } else {
       inputHtml = `<input type="text" class="preview-inp" placeholder="${esc(placeholder)}" disabled>`;
     }
 
+    // Condition summary hint in preview
+    const condHint = hasConditions ? (() => {
+      const conds = f.conditions.filter(c => c.field_id && c.value);
+      if (!conds.length) return '';
+      
+      let hint = '↳ shown if ';
+      conds.forEach((c, i) => {
+        const pf = fields.find(x => x.id === c.field_id);
+        const fieldName = esc(pf ? pf.label || '?' : '?');
+        const value = esc(c.value);
+        
+        if (i > 0) {
+          const operator = c.operator || 'AND';
+          hint += ` <strong>${operator}</strong> `;
+        }
+        hint += `<em>${fieldName}</em> = <strong>${value}</strong>`;
+      });
+      return `<p style="font-size:10px;color:#a78bfa;margin-top:4px;line-height:1.5">${hint}</p>`;
+    })() : '';
+
     wrap.innerHTML = `<div>
       <span class="preview-label">${esc(label)}${f.required ? ' <span style="color:#f87171">*</span>' : ''}</span>
       ${inputHtml}
+      ${condHint}
     </div>`;
     container.appendChild(wrap);
   });
 }
 
-// ── mutations ──────────────────────────────────────────────────────────────────
-function addField() {
-  fields.push({
-    id: '', label: '', type: 'text', required: false,
-    placeholder: '', options: [], order: fields.length, col_span: 12,
-    file_label: 'Attachments', allowed_types: [], max_files: 1,
-    max_size_value: null, max_size_unit: 'MB',
-    option_mode: 'plain', tree: [], child_field_name: '',
+
+async function importOptions(fieldIdx) {
+  const optionSources = [];
+
+  OTHER_FORMS.forEach(form => {
+    (form.fields || []).forEach(field => {
+      if (
+        ['select','radio','checkbox'].includes(field.type) &&
+        Array.isArray(field.options) &&
+        field.options.length
+      ) {
+        optionSources.push({
+          formName: form.name,
+          fieldLabel: field.label,
+          options: field.options
+        });
+      }
+    });
   });
-  render();
-  setTimeout(() => {
-    const inputs = document.querySelectorAll('#fieldList .field-card input[type=text]');
-    if (inputs.length >= 2) inputs[inputs.length - 2].focus();
-  }, 50);
-}
 
-function removeField(idx) {
-  fields.splice(idx, 1);
-  fields.forEach((f, i) => f.order = i);
-  render();
-}
-
-function upd(idx, key, val) {
-  fields[idx][key] = val;
-  render();
-}
-
-function changeType(idx, val) {
-  fields[idx].type = val;
-  if (val === 'file') {
-    if (!fields[idx].file_label)    fields[idx].file_label    = 'Attachments';
-    if (!fields[idx].allowed_types) fields[idx].allowed_types = [];
-    if (!fields[idx].max_files)     fields[idx].max_files     = 1;
-    if (!fields[idx].max_size_unit) fields[idx].max_size_unit = 'MB';
-  }
-  if (val === 'select' || val === 'radio') {
-    if (!fields[idx].option_mode)      fields[idx].option_mode      = 'plain';
-    if (!fields[idx].tree)             fields[idx].tree             = [];
-    if (!fields[idx].child_field_name) fields[idx].child_field_name = '';
-  }
-  render();
-}
-
-// ── submit ─────────────────────────────────────────────────────────────────────
-document.getElementById('mainForm').addEventListener('submit', e => {
-  if (fields.some(f => !f.label.trim())) {
-    e.preventDefault();
-    alert('All fields need a label before saving.');
+  if (!optionSources.length) {
+    showAlertModal('No Options Found', 'No option fields found in existing forms.');
     return;
   }
 
-  // Before serialising, strip internal-only import state keys
-  // and mark cascade fields properly
-  const clean = fields.map(f => {
-    const out = { ...f };
-    delete out._import_form_id;
-    delete out._import_field_id;
-    delete out._import_with_children;
-    if (out.type === 'select' || out.type === 'radio') {
-      out.cascade = out.option_mode === 'cascade';
-    }
-    return out;
+  const items = optionSources.map(f => `${f.fieldLabel} (${f.formName})`);
+  const selectedIdx = await showSelectionModal('Import Options From', items, true);
+
+  if (selectedIdx < 0) return;
+
+  fields[fieldIdx].options = JSON.parse(
+    JSON.stringify(optionSources[selectedIdx].options)
+  );
+
+  render();
+}
+
+async function importForm() {
+  if (!OTHER_FORMS || !OTHER_FORMS.length) {
+    showAlertModal('No Forms Available', 'No forms available to import.');
+    return;
+  }
+
+  const names = OTHER_FORMS.map(f => f.name);
+  const selectedIdx = await showSelectionModal('Select Form to Import', names, true);
+
+  if (selectedIdx < 0) return;
+
+  const confirmed = await showConfirmModal(
+    'Import Form?',
+    `Import "${OTHER_FORMS[selectedIdx].name}"? Current fields will be replaced.`
+  );
+
+  if (!confirmed) return;
+
+  fields = JSON.parse(
+    JSON.stringify(
+      (OTHER_FORMS[selectedIdx].fields || []).map(f => ({
+        ...f,
+        id: tempId()
+      }))
+    )
+  );
+  render();
+}
+
+
+// ── submit ────────────────────────────────────────────────────────────────────
+document.getElementById('mainForm').addEventListener('submit', e => {
+  // Sync labels from DOM
+  document.querySelectorAll('#fieldList .field-card').forEach((card, idx) => {
+    const labelInp = card.querySelector('input[type=text]');
+    if (labelInp) fields[idx].label = labelInp.value;
   });
+
+  if (fields.some(f => !f.label.trim())) {
+    e.preventDefault();
+    showAlertModal('Missing Field Labels', 'All fields need a label before saving.');
+    return;
+  }
+
+  // Clean up: remove conditions with empty field_id or value
+  const clean = fields.map(f => ({
+    ...f,
+    conditions: (f.conditions || []).filter(c => c.field_id && c.value),
+  }));
 
   document.getElementById('fieldsJson').value = JSON.stringify(clean);
 });
 
-// ── publish toggle ─────────────────────────────────────────────────────────────
+// ── publish toggle ────────────────────────────────────────────────────────────
 async function togglePublish() {
   const btn = document.getElementById('togglePublishBtn');
   const isPublished = btn.dataset.published === 'true';
   btn.disabled = true;
   btn.textContent = '…';
-
   try {
     const res = await fetch(btn.dataset.url, { method: 'POST' });
     if (!res.ok) throw new Error('Request failed');
-
     const nowPublished = !isPublished;
     btn.dataset.published = nowPublished ? 'true' : 'false';
     btn.textContent = nowPublished ? 'Unpublish' : 'Publish';
-
     if (nowPublished) {
       btn.classList.remove('border-emerald-200','text-emerald-700','hover:bg-emerald-50');
       btn.classList.add('border-amber-200','text-amber-700','hover:bg-amber-50');
@@ -1010,7 +1505,6 @@ async function togglePublish() {
       btn.classList.remove('border-amber-200','text-amber-700','hover:bg-amber-50');
       btn.classList.add('border-emerald-200','text-emerald-700','hover:bg-emerald-50');
     }
-
     const badge = document.getElementById('publishBadge');
     if (badge) {
       badge.textContent = nowPublished ? 'Published' : 'Draft';
@@ -1022,13 +1516,11 @@ async function togglePublish() {
         badge.classList.add('bg-faint','border-line','text-muted');
       }
     }
-
     const liveLink = document.getElementById('viewLiveLink');
     if (liveLink) liveLink.classList.toggle('hidden', !nowPublished);
-
   } catch (err) {
     btn.textContent = isPublished ? 'Unpublish' : 'Publish';
-    alert('Something went wrong. Please try again.');
+    showAlertModal('Error', 'Something went wrong. Please try again.');
   } finally {
     btn.disabled = false;
   }

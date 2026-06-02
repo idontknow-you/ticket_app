@@ -57,8 +57,13 @@ class FormConfig(db.Model):
     def publish_new_version(self, fields: list, created_by: int = None) -> "FormConfigVersion":
         """
         Create the next version, make it current, and return it.
+        Only creates a new version if fields have changed from the current version.
         Caller must call db.session.commit() after this.
         """
+        # Skip version creation if fields are unchanged
+        if self.current_version and self.current_version.fields == fields:
+            return self.current_version
+
         # Query the max version number directly from the DB rather than using
         # the relationship — avoids stale in-memory data causing duplicate version numbers.
         max_ver = db.session.query(

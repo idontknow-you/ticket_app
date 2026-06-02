@@ -39,31 +39,28 @@
           <div class="mb-6"></div>
         {% endif %}
 
+        {% set sorted = active_form.sorted_fields %}
+
         <form method="POST" action="{{ url_for('public.submit', slug=active_form.slug) }}" enctype="multipart/form-data" novalidate>
           {% set base_cls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-ink placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition" %}
 
-          <!-- 12-column grid for field layout -->
+          <!-- 12-column grid -->
           <div style="display:grid; grid-template-columns: repeat(12, 1fr); gap: 16px;" id="formGrid">
-            {% for field in active_form.sorted_fields %}
+            {% for field in sorted %}
 
-              {# ── determine if this field is a cascade child of another field ── #}
-              {# We build a map: child_field_name -> parent_field_id               #}
-              {# and hide child fields on page load; JS shows them on parent change #}
-              {% set is_cascade_child = false %}
-              {% set cascade_parent_id = '' %}
-              {% for pf in active_form.sorted_fields %}
-                {% if pf.cascade and pf.child_field_name and pf.child_field_name == field.label %}
-                  {% set is_cascade_child = true %}
-                  {% set cascade_parent_id = pf.id %}
-                {% endif %}
-              {% endfor %}
+              {#
+                A field is conditional if it has at least one condition with a non-empty
+                field_id and value. Such fields start hidden and are revealed when all
+                their AND conditions are satisfied.
+              #}
+              {% set has_conditions = field.conditions and field.conditions | selectattr('field_id') | selectattr('value') | list | length > 0 %}
 
               <div
                 id="field-wrap-{{ field.id }}"
-                style="grid-column: span {{ field.col_span if field.col_span else 12 }}{% if is_cascade_child %}; display:none{% endif %}"
-                {% if is_cascade_child %}
-                  data-cascade-child="true"
-                  data-parent-id="{{ cascade_parent_id }}"
+                data-field-id="{{ field.id }}"
+                style="grid-column: span {{ field.col_span if field.col_span else 12 }}{% if has_conditions %}; display:none{% endif %}"
+                {% if has_conditions %}
+                  data-conditions="{{ field.conditions | tojson | forceescape }}"
                 {% endif %}>
 
                 <label class="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
@@ -78,69 +75,40 @@
                     class="{{ base_cls }} resize-none"></textarea>
 
                 {% elif field.type == 'select' %}
-                  {# ── cascade select ── #}
-                  {% if field.cascade and field.tree %}
-                    <select name="{{ field.id }}"
-                      id="sel-{{ field.id }}"
-                      {% if field.required %}required{% endif %}
-                      class="{{ base_cls }}"
-                      data-cascade="true"
-                      data-field-id="{{ field.id }}"
-                      data-tree="{{ field.tree | tojson | e }}"
-                      data-child-field-name="{{ field.child_field_name or '' }}">
-                      <option value="">Select an option</option>
-                      {% for opt in field.options %}
-                        <option value="{{ opt }}">{{ opt }}</option>
-                      {% endfor %}
-                    </select>
-                  {% else %}
-                    {# ── plain select ── #}
-                    <select name="{{ field.id }}"
-                      {% if field.required %}required{% endif %}
-                      class="{{ base_cls }}">
-                      <option value="">Select an option</option>
-                      {% for opt in field.options %}
-                        <option value="{{ opt }}">{{ opt }}</option>
-                      {% endfor %}
-                    </select>
-                  {% endif %}
+                  <select name="{{ field.id }}"
+                    id="sel-{{ field.id }}"
+                    {% if field.required %}required{% endif %}
+                    class="{{ base_cls }}"
+                    data-trigger-id="{{ field.id }}">
+                    <option value="">Select an option</option>
+                    {% for opt in field.options %}
+                      <option value="{{ opt }}">{{ opt }}</option>
+                    {% endfor %}
+                  </select>
 
                 {% elif field.type == 'radio' %}
-                  {# ── cascade radio ── #}
-                  {% if field.cascade and field.tree %}
-                    <div class="space-y-2 mt-1"
-                      data-cascade="true"
-                      data-field-id="{{ field.id }}"
-                      data-tree="{{ field.tree | tojson | e }}"
-                      data-child-field-name="{{ field.child_field_name or '' }}">
-                      {% for opt in field.options %}
-                        <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
-                          <input type="radio" name="{{ field.id }}" value="{{ opt }}"
-                            class="accent-gray-900 w-4 h-4 cascade-radio"
-                            data-field-id="{{ field.id }}">
-                          {{ opt }}
-                        </label>
-                      {% endfor %}
-                    </div>
-                  {% else %}
-                    {# ── plain radio ── #}
-                    <div class="space-y-2 mt-1">
-                      {% for opt in field.options %}
-                        <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
-                          <input type="radio" name="{{ field.id }}" value="{{ opt }}"
-                            class="accent-gray-900 w-4 h-4">
-                          {{ opt }}
-                        </label>
-                      {% endfor %}
-                    </div>
-                  {% endif %}
+                  <div class="space-y-2 mt-1"
+                    id="radio-group-{{ field.id }}"
+                    data-trigger-id="{{ field.id }}">
+                    {% for opt in field.options %}
+                      <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
+                        <input type="radio" name="{{ field.id }}" value="{{ opt }}"
+                          class="accent-gray-900 w-4 h-4"
+                          data-trigger-id="{{ field.id }}">
+                        {{ opt }}
+                      </label>
+                    {% endfor %}
+                  </div>
 
                 {% elif field.type == 'checkbox' %}
-                  <div class="space-y-2 mt-1">
+                  <div class="space-y-2 mt-1"
+                    id="checkbox-group-{{ field.id }}"
+                    data-trigger-id="{{ field.id }}">
                     {% for opt in field.options %}
                       <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
                         <input type="checkbox" name="{{ field.id }}" value="{{ opt }}"
-                          class="accent-gray-900 w-4 h-4">
+                          class="accent-gray-900 w-4 h-4"
+                          data-trigger-id="{{ field.id }}">
                         {{ opt }}
                       </label>
                     {% endfor %}
@@ -155,13 +123,9 @@
                   {% set has_wildcard  = not allowed_types or '*' in allowed_types %}
                   {% set accept_str    = allowed_types | reject('equalto', '*') | join(',') if not has_wildcard else '' %}
 
-                  <input type="file"
-                    id="real-input-{{ field.id }}"
-                    name="{{ field.id }}"
+                  <input type="file" id="real-input-{{ field.id }}" name="{{ field.id }}"
                     {% if field.required %}required{% endif %}
-                    multiple
-                    {% if accept_str %}accept="{{ accept_str }}"{% endif %}
-                    class="sr-only">
+                    multiple {% if accept_str %}accept="{{ accept_str }}"{% endif %} class="sr-only">
 
                   <div class="space-y-2">
                     <div id="dropzone-{{ field.id }}"
@@ -177,26 +141,17 @@
                     <div id="thumb-strip-{{ field.id }}" class="flex flex-wrap gap-2"></div>
                   </div>
 
-                  <input type="file"
-                    id="picker-{{ field.id }}"
-                    multiple
-                    {% if accept_str %}accept="{{ accept_str }}"{% endif %}
-                    class="sr-only"
+                  <input type="file" id="picker-{{ field.id }}" multiple
+                    {% if accept_str %}accept="{{ accept_str }}"{% endif %} class="sr-only"
                     onchange="accumulateFiles('{{ field.id }}', this, {{ max_files }}, '{{ size_val }}', '{{ size_unit }}')">
 
                   {% if allowed_types and not has_wildcard %}
                     {% set type_labels = {
-                      'image/*':           'Images',
-                      'application/pdf':   'PDF',
-                      '.doc,.docx':        'Word',
-                      '.xls,.xlsx':        'Excel',
-                      'video/*':           'Video',
-                      'audio/*':           'Audio'
-                    } %}
+                      'image/*': 'Images', 'application/pdf': 'PDF',
+                      '.doc,.docx': 'Word', '.xls,.xlsx': 'Excel',
+                      'video/*': 'Video', 'audio/*': 'Audio' } %}
                     {% set readable = [] %}
-                    {% for t in allowed_types %}
-                      {% set _ = readable.append(type_labels.get(t, t)) %}
-                    {% endfor %}
+                    {% for t in allowed_types %}{% set _ = readable.append(type_labels.get(t, t)) %}{% endfor %}
                     {% set type_hint = readable | join(', ') %}
                   {% else %}
                     {% set type_hint = '' %}
@@ -238,7 +193,7 @@
 </div>
 
 <script>
-// ── file attachment logic (unchanged) ─────────────────────────────────────────
+// ── file attachment logic ─────────────────────────────────────────────────────
 const _dt = {};
 
 function triggerPicker(fieldId) {
@@ -249,26 +204,15 @@ function accumulateFiles(fieldId, picker, maxF, sizeVal, sizeUnit) {
   const newFiles  = Array.from(picker.files);
   const unitBytes = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 };
   const maxBytes  = sizeVal ? parseFloat(sizeVal) * (unitBytes[sizeUnit] || unitBytes.MB) : null;
-
   if (!_dt[fieldId]) _dt[fieldId] = new DataTransfer();
   const dt = _dt[fieldId];
-
   for (const f of newFiles) {
-    const alreadyHave = Array.from(dt.files).some(x => x.name === f.name && x.size === f.size);
-    if (alreadyHave) continue;
-    if (maxBytes && f.size > maxBytes) {
-      alert(`"${f.name}" exceeds the ${sizeVal}${sizeUnit} limit per file.`);
-      continue;
-    }
-    if (dt.files.length >= maxF) {
-      alert(`You can attach at most ${maxF} file${maxF !== 1 ? 's' : ''}.`);
-      break;
-    }
+    if (Array.from(dt.files).some(x => x.name === f.name && x.size === f.size)) continue;
+    if (maxBytes && f.size > maxBytes) { alert(`"${f.name}" exceeds the ${sizeVal}${sizeUnit} limit per file.`); continue; }
+    if (dt.files.length >= maxF) { alert(`You can attach at most ${maxF} file${maxF !== 1 ? 's' : ''}.`); break; }
     dt.items.add(f);
   }
-
-  const realInput = document.getElementById('real-input-' + fieldId);
-  realInput.files = dt.files;
+  document.getElementById('real-input-' + fieldId).files = dt.files;
   picker.value = '';
   renderStrip(fieldId, dt.files);
 }
@@ -287,16 +231,13 @@ function renderStrip(fieldId, files) {
   const label = document.getElementById('file-label-' + fieldId);
   const strip = document.getElementById('thumb-strip-' + fieldId);
   const count = files.length;
-  label.textContent = count === 0 ? 'No file chosen'
-                    : count === 1 ? files[0].name
-                    : `${count} files selected`;
+  label.textContent = count === 0 ? 'No file chosen' : count === 1 ? files[0].name : `${count} files selected`;
   label.style.color = count === 0 ? '' : '#111';
   strip.innerHTML = '';
   Array.from(files).forEach((file, idx) => {
     const isImage = file.type.startsWith('image/');
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;gap:6px;' +
-      'padding:4px 8px 4px 4px;border-radius:8px;border:1px solid #e2e2de;background:#fafaf8;max-width:180px;';
+    wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;gap:6px;padding:4px 8px 4px 4px;border-radius:8px;border:1px solid #e2e2de;background:#fafaf8;max-width:180px;';
     if (isImage) {
       const img = document.createElement('img');
       img.style.cssText = 'width:36px;height:36px;object-fit:cover;border-radius:5px;flex-shrink:0;';
@@ -313,9 +254,7 @@ function renderStrip(fieldId, files) {
     name.textContent = file.name;
     wrap.appendChild(name);
     const del = document.createElement('button');
-    del.type = 'button';
-    del.innerHTML = '×';
-    del.title = 'Remove';
+    del.type = 'button'; del.innerHTML = '×'; del.title = 'Remove';
     del.style.cssText = 'margin-left:2px;background:none;border:none;color:#999;font-size:16px;line-height:1;cursor:pointer;padding:0;flex-shrink:0;';
     del.onclick = (e) => { e.stopPropagation(); removeFile(fieldId, idx); };
     wrap.appendChild(del);
@@ -323,144 +262,155 @@ function renderStrip(fieldId, files) {
   });
 }
 
-// ── cascade logic ─────────────────────────────────────────────────────────────
+// ── BRANCHING ENGINE ──────────────────────────────────────────────────────────
+//
+// Each conditional field wrapper has:
+//   data-conditions="[{field_id, value}, ...]"   ← AND logic
+//
+// When any trigger field changes, we re-evaluate ALL conditional fields.
+// A field becomes visible when EVERY condition in its list is satisfied.
+// When a field is hidden, all its inputs are cleared so they don't submit.
 
-// Build a lookup: parentFieldId -> { tree, childFieldName }
-// from all elements with data-cascade="true"
-const cascadeSources = {};
+// Build a live map of current values for each trigger field.
+// For checkboxes (multi-value), the value is an array of checked values.
+const _fieldValues = {};
 
-document.querySelectorAll('[data-cascade="true"]').forEach(el => {
-  const fieldId       = el.dataset.fieldId;
-  const tree          = JSON.parse(el.dataset.tree || '[]');
-  const childName     = el.dataset.childFieldName || '';
-  cascadeSources[fieldId] = { tree, childName };
-});
+function getFieldValue(fieldId) {
+  // select
+  const sel = document.getElementById('sel-' + fieldId);
+  if (sel) return sel.value;
 
-// Find the child field wrapper by matching its label text to childFieldName
-function findChildWrap(childName) {
-  // child wraps are marked data-cascade-child="true" with data-parent-id
-  // but we also need to find them by the label text inside
-  const allWraps = document.querySelectorAll('[data-cascade-child="true"]');
-  for (const w of allWraps) {
-    const labelEl = w.querySelector('label');
-    if (labelEl) {
-      const labelText = labelEl.textContent.trim().replace(/\s*\*\s*$/, '').trim();
-      if (labelText.toLowerCase() === childName.toLowerCase()) return w;
+  // radio
+  const radioGroup = document.getElementById('radio-group-' + fieldId);
+  if (radioGroup) {
+    const checked = radioGroup.querySelector('input[type=radio]:checked');
+    return checked ? checked.value : '';
+  }
+
+  // checkbox
+  const cbGroup = document.getElementById('checkbox-group-' + fieldId);
+  if (cbGroup) {
+    return Array.from(cbGroup.querySelectorAll('input[type=checkbox]:checked'))
+      .map(cb => cb.value);
+  }
+
+  return '';
+}
+
+function valueMatches(fieldValue, condValue) {
+  if (Array.isArray(fieldValue)) {
+    // Checkbox: condition satisfied if condValue is among checked values
+    return fieldValue.includes(condValue);
+  }
+  return fieldValue === condValue;
+}
+
+function evaluateAllConditions() {
+  const conditionalWraps = document.querySelectorAll('[data-conditions]');
+
+  conditionalWraps.forEach(wrap => {
+    let conditions;
+    try { conditions = JSON.parse(wrap.dataset.conditions); } catch (e) { return; }
+
+    // Valid conditions only (both field_id and value populated)
+    const valid = conditions.filter(c => c.field_id && c.value);
+    if (!valid.length) { wrap.style.display = ''; return; }
+
+    // AND logic: every condition must be met
+    const allMet = valid.every(c => valueMatches(getFieldValue(c.field_id), c.value));
+
+    const wasVisible = wrap.style.display !== 'none';
+    const nowVisible = allMet;
+
+    if (wasVisible && !nowVisible) {
+      // Hiding: clear all inputs in this field so they don't submit
+      clearFieldWrap(wrap);
+      // Smooth hide
+      wrap.style.transition = 'opacity .15s';
+      wrap.style.opacity = '0';
+      setTimeout(() => {
+        wrap.style.display = 'none';
+        wrap.style.opacity = '';
+        wrap.style.transition = '';
+        // Re-evaluate in case other fields depended on this one
+        evaluateAllConditions();
+      }, 150);
+    } else if (!wasVisible && nowVisible) {
+      // Showing
+      wrap.style.display = '';
+      wrap.style.opacity = '0';
+      wrap.style.transition = 'opacity .2s';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          wrap.style.opacity = '1';
+          setTimeout(() => { wrap.style.transition = ''; wrap.style.opacity = ''; }, 200);
+        });
+      });
     }
-  }
-  // Fallback: search all field wraps for matching label
-  const allFieldWraps = document.querySelectorAll('[id^="field-wrap-"]');
-  for (const w of allFieldWraps) {
-    const labelEl = w.querySelector('label');
-    if (labelEl) {
-      const labelText = labelEl.textContent.trim().replace(/\s*\*\s*$/, '').trim();
-      if (labelText.toLowerCase() === childName.toLowerCase()) return w;
-    }
-  }
-  return null;
-}
-
-// Find the child select/radio container inside a wrapper
-function findChildInput(wrap) {
-  return wrap.querySelector('select') || wrap.querySelector('[data-cascade], .space-y-2');
-}
-
-// Update child field: show/hide and populate options
-function updateChildField(fieldId, selectedValue) {
-  const src = cascadeSources[fieldId];
-  if (!src) return;
-
-  const childWrap = findChildWrap(src.childName);
-  if (!childWrap) return;
-
-  if (!selectedValue) {
-    // Hide child and clear its value
-    childWrap.style.display = 'none';
-    clearChildField(childWrap);
-    return;
-  }
-
-  // Find matching tree node
-  const node = src.tree.find(n => n.label === selectedValue);
-  const children = (node && Array.isArray(node.children)) ? node.children : [];
-
-  if (!children.length) {
-    childWrap.style.display = 'none';
-    clearChildField(childWrap);
-    return;
-  }
-
-  // Show the child wrapper
-  childWrap.style.display = '';
-
-  // Populate child options
-  const childSelect = childWrap.querySelector('select');
-  if (childSelect) {
-    // Preserve field name
-    const name = childSelect.name;
-    childSelect.innerHTML = `<option value="">Select an option</option>` +
-      children.map(c => `<option value="${escHtml(c.label)}">${escHtml(c.label)}</option>`).join('');
-    childSelect.name = name;
-    // Reset any downstream cascade from child
-    childSelect.value = '';
-    handleCascadeChange(childSelect.dataset.fieldId || '', '');
-  }
-
-  // Handle radio child
-  const childRadioWrap = childWrap.querySelector('.space-y-2');
-  if (childRadioWrap && !childSelect) {
-    const name = childRadioWrap.querySelector('input[type=radio]')?.name || '';
-    childRadioWrap.innerHTML = children.map(c => `
-      <label class="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
-        <input type="radio" name="${name}" value="${escHtml(c.label)}"
-          class="accent-gray-900 w-4 h-4 cascade-radio"
-          data-field-id="${childRadioWrap.dataset.fieldId || ''}">
-        ${escHtml(c.label)}
-      </label>`).join('');
-    // Re-attach listeners for newly created radios
-    attachRadioListeners();
-  }
-}
-
-function clearChildField(wrap) {
-  const sel = wrap.querySelector('select');
-  if (sel) { sel.value = ''; sel.innerHTML = '<option value="">Select an option</option>'; }
-  const radios = wrap.querySelectorAll('input[type=radio]');
-  radios.forEach(r => { r.checked = false; });
-}
-
-function handleCascadeChange(fieldId, value) {
-  if (!fieldId) return;
-  updateChildField(fieldId, value);
-}
-
-function escHtml(s) {
-  return String(s)
-    .replace(/&/g,'&amp;')
-    .replace(/"/g,'&quot;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;');
-}
-
-// Attach change listeners to cascade selects
-document.querySelectorAll('select[data-cascade="true"]').forEach(sel => {
-  sel.addEventListener('change', () => {
-    handleCascadeChange(sel.dataset.fieldId, sel.value);
-  });
-});
-
-// Attach change listeners to cascade radios
-function attachRadioListeners() {
-  document.querySelectorAll('input.cascade-radio').forEach(radio => {
-    // avoid double-binding
-    if (radio._cascadeBound) return;
-    radio._cascadeBound = true;
-    radio.addEventListener('change', () => {
-      if (radio.checked) handleCascadeChange(radio.dataset.fieldId, radio.value);
-    });
   });
 }
-attachRadioListeners();
+
+function clearFieldWrap(wrap) {
+  // Text / number / email / etc.
+  wrap.querySelectorAll('input[type=text], input[type=number], input[type=email], input[type=tel], input[type=date], input[type=time]')
+    .forEach(inp => { inp.value = ''; });
+
+  // Textarea
+  wrap.querySelectorAll('textarea').forEach(ta => { ta.value = ''; });
+
+  // Select
+  wrap.querySelectorAll('select').forEach(sel => { sel.value = ''; });
+
+  // Radio
+  wrap.querySelectorAll('input[type=radio]').forEach(r => { r.checked = false; });
+
+  // Checkbox
+  wrap.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+
+  // File inputs
+  wrap.querySelectorAll('input[type=file]').forEach(fi => {
+    try { fi.value = ''; } catch (e) {}
+    // Also clear our DataTransfer accumulator
+    const fieldId = fi.id.replace('real-input-', '');
+    if (_dt[fieldId]) {
+      _dt[fieldId] = new DataTransfer();
+      fi.files = _dt[fieldId].files;
+    }
+    const strip = document.getElementById('thumb-strip-' + fieldId);
+    const label = document.getElementById('file-label-' + fieldId);
+    if (strip) strip.innerHTML = '';
+    if (label) { label.textContent = 'No file chosen'; label.style.color = ''; }
+  });
+
+  // Re-trigger cascade evaluation for any newly hidden selects/radios
+  // (in case they were themselves parents of other conditional fields)
+  wrap.querySelectorAll('[data-trigger-id]').forEach(el => {
+    evaluateAllConditions();
+  });
+}
+
+// ── Wire up all trigger fields ────────────────────────────────────────────────
+function wireTriggers() {
+  // Select fields
+  document.querySelectorAll('select[data-trigger-id]').forEach(sel => {
+    sel.addEventListener('change', evaluateAllConditions);
+  });
+
+  // Radio inputs
+  document.querySelectorAll('input[type=radio][data-trigger-id]').forEach(radio => {
+    radio.addEventListener('change', evaluateAllConditions);
+  });
+
+  // Checkbox inputs
+  document.querySelectorAll('input[type=checkbox][data-trigger-id]').forEach(cb => {
+    cb.addEventListener('change', evaluateAllConditions);
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+wireTriggers();
+// Run once on load to handle any pre-filled states (e.g. browser back-fill)
+evaluateAllConditions();
 </script>
 
 {% endblock %}
