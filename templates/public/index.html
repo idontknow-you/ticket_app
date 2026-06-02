@@ -265,20 +265,22 @@ function renderStrip(fieldId, files) {
 // ── BRANCHING ENGINE ──────────────────────────────────────────────────────────
 //
 // Each conditional field wrapper has:
-//   data-conditions="[{field_id, value}, ...]"   ← AND logic
+//   data-conditions="[{field_id, value, operator}, ...]"   ← AND/OR logic per condition
 //
 // When any trigger field changes, we re-evaluate ALL conditional fields.
-// A field becomes visible when EVERY condition in its list is satisfied.
+// A field becomes visible when its conditions are satisfied based on the logic.
 // When a field is hidden, all its inputs are cleared so they don't submit.
 
-// Build a live map of current values for each trigger field.
-// For checkboxes (multi-value), the value is an array of checked values.
 const _fieldValues = {};
 
 function getFieldValue(fieldId) {
+  if (!fieldId) return '';
+  
   // select
   const sel = document.getElementById('sel-' + fieldId);
-  if (sel) return sel.value;
+  if (sel) {
+    return sel.value || '';
+  }
 
   // radio
   const radioGroup = document.getElementById('radio-group-' + fieldId);
@@ -290,18 +292,23 @@ function getFieldValue(fieldId) {
   // checkbox
   const cbGroup = document.getElementById('checkbox-group-' + fieldId);
   if (cbGroup) {
-    return Array.from(cbGroup.querySelectorAll('input[type=checkbox]:checked'))
+    const checked = Array.from(cbGroup.querySelectorAll('input[type=checkbox]:checked'))
       .map(cb => cb.value);
+    return checked;
   }
 
   return '';
 }
 
 function valueMatches(fieldValue, condValue) {
+  if (!condValue) return false;
+  
   if (Array.isArray(fieldValue)) {
     // Checkbox: condition satisfied if condValue is among checked values
     return fieldValue.includes(condValue);
   }
+  
+  // Direct comparison for select/radio
   return fieldValue === condValue;
 }
 
@@ -310,15 +317,50 @@ function evaluateAllConditions() {
 
   conditionalWraps.forEach(wrap => {
     let conditions;
-    try { conditions = JSON.parse(wrap.dataset.conditions); } catch (e) { return; }
+    const condAttr = wrap.getAttribute('data-conditions');
+    
+    if (!condAttr) {
+      wrap.style.display = '';
+      return;
+    }
 
-    // Valid conditions only (both field_id and value populated)
-    const valid = conditions.filter(c => c.field_id && c.value);
-    if (!valid.length) { wrap.style.display = ''; return; }
+    try { 
+      conditions = JSON.parse(condAttr);
+    } catch (e) { 
+      console.warn('Failed to parse conditions for field', wrap.id, ':', e, 'raw:', condAttr);
+      wrap.style.display = '';
+      return; 
+    }
 
-    // AND logic: every condition must be met
-    const allMet = valid.every(c => valueMatches(getFieldValue(c.field_id), c.value));
+    if (!Array.isArray(conditions)) {
+      wrap.style.display = '';
+      return;
+    }
 
+    // Filter to valid conditions (both field_id and value populated)
+    const validConditions = conditions.filter(c => c && c.field_id && c.value);
+    
+    if (!validConditions.length) { 
+      wrap.style.display = ''; 
+      return; 
+    }
+
+    // Evaluate conditions with AND/OR operators
+    let result = valueMatches(getFieldValue(validConditions[0].field_id), validConditions[0].value);
+    
+    for (let i = 1; i < validConditions.length; i++) {
+      const c = validConditions[i];
+      const conditionMet = valueMatches(getFieldValue(c.field_id), c.value);
+      const operator = c.operator || 'AND';
+      
+      if (operator === 'OR') {
+        result = result || conditionMet;
+      } else {
+        result = result && conditionMet;
+      }
+    }
+    
+    const allMet = result;
     const wasVisible = wrap.style.display !== 'none';
     const nowVisible = allMet;
 
@@ -381,36 +423,40 @@ function clearFieldWrap(wrap) {
     if (strip) strip.innerHTML = '';
     if (label) { label.textContent = 'No file chosen'; label.style.color = ''; }
   });
-
-  // Re-trigger cascade evaluation for any newly hidden selects/radios
-  // (in case they were themselves parents of other conditional fields)
-  wrap.querySelectorAll('[data-trigger-id]').forEach(el => {
-    evaluateAllConditions();
-  });
 }
 
 // ── Wire up all trigger fields ────────────────────────────────────────────────
 function wireTriggers() {
   // Select fields
   document.querySelectorAll('select[data-trigger-id]').forEach(sel => {
+    sel.removeEventListener('change', evaluateAllConditions);
     sel.addEventListener('change', evaluateAllConditions);
   });
 
   // Radio inputs
   document.querySelectorAll('input[type=radio][data-trigger-id]').forEach(radio => {
+    radio.removeEventListener('change', evaluateAllConditions);
     radio.addEventListener('change', evaluateAllConditions);
   });
 
   // Checkbox inputs
   document.querySelectorAll('input[type=checkbox][data-trigger-id]').forEach(cb => {
+    cb.removeEventListener('change', evaluateAllConditions);
     cb.addEventListener('change', evaluateAllConditions);
   });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-wireTriggers();
-// Run once on load to handle any pre-filled states (e.g. browser back-fill)
-evaluateAllConditions();
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    wireTriggers();
+    evaluateAllConditions();
+  });
+} else {
+  wireTriggers();
+  evaluateAllConditions();
+}
 </script>
 
 {% endblock %}
