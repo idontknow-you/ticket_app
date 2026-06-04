@@ -16,6 +16,8 @@ def init_db(app=None):
     with app.app_context():
         from extensions import db
         from models import User, FormConfigVersion, FormConfig, FormSubmission
+        from models.mail import MailTemplate
+        from models.mail_queue import MailQueue, MailLog
 
         db.create_all()
 
@@ -27,6 +29,7 @@ def init_db(app=None):
         if not User.query.filter_by(username="superadmin").first():
             admin = User(
                 username="superadmin",
+                email="idkwhyihv123@gmail.com",
                 is_superadmin=True,
                 is_active=True,
                 permissions={},

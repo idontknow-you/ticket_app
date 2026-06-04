@@ -1,0 +1,596 @@
+{% extends "base.html" %}
+{% block title %}Carousel{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Tabs ─────────────────────────────────────────────── */
+  .tab-btn {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 0.625rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    color: #6b7280;
+    background: transparent;
+  }
+  .tab-btn.active {
+    background: #fff;
+    color: #111;
+    border-color: #e8e8e4;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .tab-btn:not(.active):hover { color: #374151; background: rgba(255,255,255,0.6); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Manage tab ───────────────────────────────────────── */
+  .carousel-card {
+    transition: box-shadow 0.2s, transform 0.15s;
+    cursor: grab;
+  }
+  .carousel-card:active { cursor: grabbing; }
+  .carousel-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.97);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  }
+  .carousel-card.drag-over { box-shadow: 0 0 0 2px #6366f1 inset; }
+
+  /* ── History tab ──────────────────────────────────────── */
+  .log-row { transition: background 0.15s; }
+  .log-row:hover { background: #f9fafb; }
+
+  .change-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .pill-added   { background: #d1fae5; color: #065f46; }
+  .pill-removed { background: #fee2e2; color: #991b1b; }
+  .pill-reorder { background: #ede9fe; color: #5b21b6; }
+
+  .detail-list { display: none; }
+  .detail-list.open { display: block; }
+  .chevron { transition: transform 0.2s; display: inline-block; }
+  .chevron.open { transform: rotate(90deg); }
+
+  .slide-thumb {
+    width: 40px; height: 28px;
+    object-fit: cover;
+    border-radius: 5px;
+    border: 1px solid #e5e7eb;
+    flex-shrink: 0;
+  }
+  .slide-thumb-placeholder {
+    width: 40px; height: 28px;
+    background: #f3f4f6;
+    border-radius: 5px;
+    border: 1px solid #e5e7eb;
+    flex-shrink: 0;
+  }
+  .order-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .order-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #f9fafb; border: 1px solid #e5e7eb;
+    border-radius: 8px; padding: 4px 8px;
+    font-size: 0.75rem; color: #374151;
+  }
+  .order-index {
+    font-size: 0.6rem; font-weight: 700; color: #9ca3af;
+    background: #f3f4f6; border-radius: 4px; padding: 1px 4px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-6 py-10">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <a href="{{ url_for('wiki.index') }}"
+           class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          Wiki
+        </a>
+        <span class="text-gray-300">/</span>
+        <span class="text-sm text-ink font-medium">Carousel</span>
+      </div>
+      <h1 class="font-serif text-2xl font-bold text-ink">Carousel</h1>
+    </div>
+    <!-- Save button (only shown on manage tab) -->
+    <button id="save-btn"
+            class="inline-flex items-center gap-2 bg-ink hover:bg-gray-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
+      Save Order
+    </button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex items-center gap-1 bg-faint border border-line rounded-xl p-1 w-fit mb-7">
+    <button class="tab-btn active" onclick="switchTab('manage', this)">
+      <span class="flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/>
+        </svg>
+        Manage
+      </span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('history', this)">
+      <span class="flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        History
+        {% if logs %}
+          <span class="text-[10px] font-semibold bg-gray-200 text-gray-600 rounded-full px-1.5 py-0.5 ml-0.5">{{ logs | length }}</span>
+        {% endif %}
+      </span>
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- TAB: MANAGE                                            -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="tab-manage" class="tab-panel active">
+    <div class="flex gap-8 items-start">
+
+      <!-- Left: Featured slots -->
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-semibold uppercase tracking-widest text-muted">Featured in Carousel</h2>
+          <span class="text-xs text-gray-400" id="slot-count">0 / 8</span>
+        </div>
+
+        <div id="carousel-slots"
+             class="space-y-2 min-h-[80px] rounded-2xl border-2 border-dashed border-line p-3 bg-faint transition"
+             ondragover="onDragOver(event)"
+             ondrop="onDrop(event)">
+          {% for item in carousel_items %}
+            {% set page = item.page %}
+            <div class="carousel-card bg-white border border-line rounded-xl overflow-hidden flex gap-3 items-center px-3 py-2.5 shadow-sm"
+                 data-page-id="{{ page.id }}"
+                 draggable="true"
+                 ondragstart="onDragStart(event)"
+                 ondragend="onDragEnd(event)"
+                 ondragover="onCardDragOver(event)"
+                 ondragleave="onCardDragLeave(event)"
+                 ondrop="onCardDrop(event)">
+              <svg class="w-4 h-4 text-gray-300 shrink-0 cursor-grab" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/>
+              </svg>
+              {% set img = item.carousel_image or page.cover_image %}
+              {% if img %}
+                <img src="{{ url_for('static', filename='wiki_uploads/' + img) }}"
+                     class="w-14 h-10 object-cover rounded-lg shrink-0 border border-line" alt="">
+              {% else %}
+                <div class="w-14 h-10 rounded-lg bg-gray-100 border border-line shrink-0 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                </div>
+              {% endif %}
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-ink truncate">{{ page.title }}</p>
+                {% if item.carousel_image %}
+                  <p class="text-xs text-indigo-500">Custom carousel image</p>
+                {% else %}
+                  <p class="text-xs text-gray-400">Using article cover</p>
+                {% endif %}
+              </div>
+              <a href="{{ url_for('wiki.edit', page_id=page.id) }}"
+                 class="text-xs text-gray-400 hover:text-indigo-600 transition px-2 py-1 rounded-lg hover:bg-faint shrink-0">
+                Edit
+              </a>
+              <button type="button"
+                      class="text-xs text-red-400 hover:text-red-600 transition shrink-0"
+                      onclick="removeFromCarousel(this, {{ page.id }})">
+                Remove
+              </button>
+            </div>
+          {% else %}
+            <div id="empty-msg" class="text-center py-8 text-sm text-gray-400">
+              No articles in carousel yet. Add from the list on the right.
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Right: Article pool -->
+      <div class="w-72 shrink-0">
+        <div class="mb-3">
+          <h2 class="text-xs font-semibold uppercase tracking-widest text-muted mb-2">All Articles</h2>
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+            <input type="text" id="article-search" placeholder="Search…"
+                   class="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-line text-ink placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 transition bg-faint"
+                   oninput="filterArticles(this.value)">
+          </div>
+        </div>
+        <div class="space-y-2" id="article-pool">
+          {% for page in all_pages %}
+            <div class="article-pool-item bg-white border border-line rounded-xl overflow-hidden flex gap-3 items-center px-3 py-2.5 hover:border-indigo-300 transition group"
+                 data-page-id="{{ page.id }}"
+                 data-title="{{ page.title | lower }}">
+              {% if page.cover_image %}
+                <img src="{{ url_for('static', filename='wiki_uploads/' + page.cover_image) }}"
+                     class="w-10 h-8 object-cover rounded-lg shrink-0 border border-line" alt="">
+              {% else %}
+                <div class="w-10 h-8 rounded-lg bg-gray-100 border border-line shrink-0"></div>
+              {% endif %}
+              <p class="flex-1 text-sm text-ink truncate font-medium">{{ page.title }}</p>
+              <button type="button"
+                      class="add-btn text-xs text-indigo-600 hover:text-indigo-800 font-medium transition shrink-0 opacity-0 group-hover:opacity-100"
+                      data-page-id="{{ page.id }}"
+                      data-page-title="{{ page.title }}"
+                      data-page-cover="{{ page.cover_image or '' }}"
+                      onclick="addToCarousel(this)">
+                + Add
+              </button>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- TAB: HISTORY                                           -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="tab-history" class="tab-panel">
+
+    {% if not logs %}
+    <div class="bg-white border border-line rounded-2xl px-8 py-20 text-center shadow-sm">
+      <svg class="w-10 h-10 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <p class="text-sm text-muted">No changes recorded yet.</p>
+      <p class="text-xs text-gray-400 mt-1">History is saved each time you save the carousel.</p>
+    </div>
+
+    {% else %}
+    <div class="bg-white border border-line rounded-2xl shadow-sm overflow-hidden">
+
+      <!-- Table header -->
+      <div class="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-6 py-3 border-b border-line bg-faint">
+        <span class="text-xs font-semibold uppercase tracking-widest text-muted">When &amp; Who</span>
+        <span class="text-xs font-semibold uppercase tracking-widest text-muted text-center">Added</span>
+        <span class="text-xs font-semibold uppercase tracking-widest text-muted text-center">Removed</span>
+        <span class="text-xs font-semibold uppercase tracking-widest text-muted text-center">Slides</span>
+      </div>
+
+      <div class="divide-y divide-line">
+        {% for log in logs %}
+        <div class="log-row">
+
+          <!-- Summary row (clickable) -->
+          <div class="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-6 py-4 items-center cursor-pointer"
+               onclick="toggleDetail('log-detail-{{ loop.index0 }}', this)">
+
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="chevron text-gray-400">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </span>
+                <span class="text-sm font-medium text-ink">{{ log.saved_at.strftime('%b %d, %Y') }}</span>
+                <span class="text-xs text-gray-400">{{ log.saved_at.strftime('%H:%M') }}</span>
+              </div>
+              <div class="ml-5 mt-0.5">
+                {% if log.saved_by and editors.get(log.saved_by) %}
+                  <span class="text-xs text-muted">by {{ editors.get(log.saved_by).full_name }}</span>
+                {% else %}
+                  <span class="text-xs text-gray-400">by Unknown</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="text-center">
+              {% if log.added | length %}
+                <span class="change-pill pill-added">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                  </svg>
+                  {{ log.added | length }}
+                </span>
+              {% else %}
+                <span class="text-xs text-gray-300">—</span>
+              {% endif %}
+            </div>
+
+            <div class="text-center">
+              {% if log.removed | length %}
+                <span class="change-pill pill-removed">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4"/>
+                  </svg>
+                  {{ log.removed | length }}
+                </span>
+              {% else %}
+                <span class="text-xs text-gray-300">—</span>
+              {% endif %}
+            </div>
+
+            <div class="text-center">
+              <span class="text-sm font-semibold text-ink">{{ log.snapshot | length }}</span>
+            </div>
+          </div>
+
+          <!-- Expandable detail -->
+          <div class="detail-list" id="log-detail-{{ loop.index0 }}">
+            <div class="px-6 pb-5 border-t border-line bg-faint space-y-4 pt-4">
+
+              {% if log.added %}
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-widest text-green-600 mb-2">Added</p>
+                <div class="space-y-1.5">
+                  {% for item in log.added %}
+                  <div class="flex items-center gap-2.5">
+                    {% if item.cover_image %}
+                      <img src="{{ url_for('static', filename='wiki_uploads/' + item.cover_image) }}" class="slide-thumb" alt="">
+                    {% else %}
+                      <div class="slide-thumb-placeholder"></div>
+                    {% endif %}
+                    <span class="text-sm text-ink">{{ item.title }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+
+              {% if log.removed %}
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-widests text-red-500 mb-2">Removed</p>
+                <div class="space-y-1.5">
+                  {% for item in log.removed %}
+                  <div class="flex items-center gap-2.5">
+                    {% if item.cover_image %}
+                      <img src="{{ url_for('static', filename='wiki_uploads/' + item.cover_image) }}" class="slide-thumb" alt="">
+                    {% else %}
+                      <div class="slide-thumb-placeholder"></div>
+                    {% endif %}
+                    <span class="text-sm text-gray-400 line-through">{{ item.title }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+
+              {% if log.reordered and not log.added and not log.removed %}
+              <div>
+                <span class="change-pill pill-reorder">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                  </svg>
+                  Order changed
+                </span>
+              </div>
+              {% endif %}
+
+              <!-- Snapshot after save -->
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-widest text-muted mb-1">Carousel after this save</p>
+                {% if log.snapshot %}
+                <div class="order-strip">
+                  {% for item in log.snapshot %}
+                  <div class="order-chip">
+                    <span class="order-index">{{ loop.index }}</span>
+                    {% set img = item.carousel_image or item.cover_image %}
+                    {% if img %}
+                      <img src="{{ url_for('static', filename='wiki_uploads/' + img) }}"
+                           style="width:28px;height:20px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;flex-shrink:0;" alt="">
+                    {% endif %}
+                    <span>{{ item.title }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                  <p class="text-xs text-gray-400 italic">Empty carousel.</p>
+                {% endif %}
+              </div>
+
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+  // ── Tab switching ─────────────────────────────────────────────────────────
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+    document.getElementById('save-btn').style.display = name === 'manage' ? '' : 'none';
+  }
+
+  // ── Manage tab logic ──────────────────────────────────────────────────────
+  const featuredIds = new Set([{% for item in carousel_items %}{{ item.page.id }},{% endfor %}]);
+  updateSlotCount();
+  markFeatured();
+
+  function updateSlotCount() {
+    const slots = document.querySelectorAll('#carousel-slots .carousel-card');
+    document.getElementById('slot-count').textContent = `${slots.length} / 8`;
+  }
+
+  function markFeatured() {
+    document.querySelectorAll('.article-pool-item').forEach(el => {
+      const id = parseInt(el.dataset.pageId);
+      if (featuredIds.has(id)) {
+        el.style.opacity = '0.4';
+        el.querySelector('.add-btn').style.display = 'none';
+      } else {
+        el.style.opacity = '';
+        const btn = el.querySelector('.add-btn');
+        if (btn) btn.style.display = '';
+      }
+    });
+    const empty = document.getElementById('empty-msg');
+    if (empty && document.querySelectorAll('#carousel-slots .carousel-card').length > 0) empty.remove();
+  }
+
+  function addToCarousel(btn) {
+    if (document.querySelectorAll('#carousel-slots .carousel-card').length >= 8) {
+      alert('Maximum 8 slides allowed.');
+      return;
+    }
+    const pageId    = parseInt(btn.dataset.pageId);
+    const pageTitle = btn.dataset.pageTitle;
+    const pageCover = btn.dataset.pagecover || '';
+
+    const card = document.createElement('div');
+    card.className = 'carousel-card bg-white border border-line rounded-xl overflow-hidden flex gap-3 items-center px-3 py-2.5 shadow-sm';
+    card.dataset.pageId = pageId;
+    card.draggable = true;
+    card.ondragstart = onDragStart; card.ondragend = onDragEnd;
+    card.ondragover  = onCardDragOver; card.ondragleave = onCardDragLeave; card.ondrop = onCardDrop;
+
+    card.innerHTML = `
+      <svg class="w-4 h-4 text-gray-300 shrink-0 cursor-grab" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/>
+      </svg>
+      ${pageCover
+        ? `<img src="/static/wiki_uploads/${pageCover}" class="w-14 h-10 object-cover rounded-lg shrink-0 border border-line" alt="">`
+        : `<div class="w-14 h-10 rounded-lg bg-gray-100 border border-line shrink-0"></div>`}
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium text-ink truncate">${escHtml(pageTitle)}</p>
+        <p class="text-xs text-gray-400">Using article cover</p>
+      </div>
+      <button type="button" class="text-xs text-red-400 hover:text-red-600 transition shrink-0"
+              onclick="removeFromCarousel(this, ${pageId})">Remove</button>`;
+
+    document.getElementById('carousel-slots').appendChild(card);
+    featuredIds.add(pageId);
+    markFeatured();
+    updateSlotCount();
+  }
+
+  function removeFromCarousel(btn, pageId) {
+    btn.closest('.carousel-card').remove();
+    featuredIds.delete(pageId);
+    markFeatured();
+    updateSlotCount();
+    if (document.querySelectorAll('#carousel-slots .carousel-card').length === 0) {
+      const msg = document.createElement('div');
+      msg.id = 'empty-msg';
+      msg.className = 'text-center py-8 text-sm text-gray-400';
+      msg.textContent = 'No articles in carousel yet. Add from the list on the right.';
+      document.getElementById('carousel-slots').appendChild(msg);
+    }
+  }
+
+  function filterArticles(term) {
+    const t = term.toLowerCase().trim();
+    document.querySelectorAll('.article-pool-item').forEach(el => {
+      el.style.display = (!t || el.dataset.title.includes(t)) ? '' : 'none';
+    });
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  document.getElementById('save-btn').addEventListener('click', async () => {
+    const order = Array.from(document.querySelectorAll('#carousel-slots .carousel-card'))
+                       .map(c => parseInt(c.dataset.pageId));
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const res  = await fetch('{{ url_for("wiki.save_carousel") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page_ids: order }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Saved!`;
+        setTimeout(() => {
+          btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Save Order`;
+          btn.disabled = false;
+        }, 1500);
+      } else {
+        alert('Save failed.'); btn.disabled = false; btn.textContent = 'Save Order';
+      }
+    } catch(e) {
+      alert('Save failed: ' + e.message); btn.disabled = false; btn.textContent = 'Save Order';
+    }
+  });
+
+  // ── Drag & drop ───────────────────────────────────────────────────────────
+  let dragSrc = null;
+
+  function onDragStart(e) {
+    dragSrc = e.currentTarget;
+    dragSrc.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function onDragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.carousel-card').forEach(c => c.classList.remove('drag-over'));
+  }
+  function onDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+  function onDrop(e) { e.preventDefault(); }
+  function onCardDragOver(e) {
+    e.preventDefault();
+    if (dragSrc && e.currentTarget !== dragSrc) e.currentTarget.classList.add('drag-over');
+  }
+  function onCardDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+  function onCardDrop(e) {
+    e.preventDefault();
+    const el = e.currentTarget;
+    el.classList.remove('drag-over');
+    if (!dragSrc || dragSrc === el) return;
+    const parent = document.getElementById('carousel-slots');
+    const cards  = Array.from(parent.querySelectorAll('.carousel-card'));
+    if (cards.indexOf(dragSrc) < cards.indexOf(el)) {
+      parent.insertBefore(dragSrc, el.nextSibling);
+    } else {
+      parent.insertBefore(dragSrc, el);
+    }
+    updateSlotCount();
+  }
+
+  // ── History tab logic ─────────────────────────────────────────────────────
+  function toggleDetail(id, row) {
+    const el      = document.getElementById(id);
+    const chevron = row.querySelector('.chevron');
+    const isOpen  = el.classList.contains('open');
+    el.classList.toggle('open', !isOpen);
+    chevron.classList.toggle('open', !isOpen);
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Open to history tab if URL has ?tab=history
+  if (new URLSearchParams(location.search).get('tab') === 'history') {
+    switchTab('history', document.querySelectorAll('.tab-btn')[1]);
+  }
+</script>
+{% endblock %}

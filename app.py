@@ -25,13 +25,14 @@ def create_app():
         from models import User
         return User.query.get(int(user_id))
 
-    from routes import auth_bp, public_bp, tickets_bp, admin_bp, forms_bp, wiki_bp
+    from routes import auth_bp, public_bp, tickets_bp, admin_bp, forms_bp, wiki_bp, mail_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(tickets_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(forms_bp)
     app.register_blueprint(wiki_bp)
+    app.register_blueprint(mail_bp)
 
     from migration import init_db
     init_db(app)

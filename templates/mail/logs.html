@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Mail Logs{% endblock %}
+
+{% block head %}
+<style>
+  .status-sent   { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
+  .status-failed { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+  .badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; border:1px solid; }
+  .log-row:hover { background: #fafaf8; }
+  .body-modal  { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.5);
+                 align-items:center; justify-content:center; }
+  .body-modal.open { display:flex; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 py-8">
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-ink">Mail Logs</h1>
+      <p class="text-sm text-muted mt-1">All sent and failed emails — up to 500 most recent.</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('mail.templates_global') }}"
+         class="text-sm px-4 py-2 rounded-xl border border-line bg-white text-muted hover:text-ink transition">
+        Templates
+      </a>
+      <a href="{{ url_for('mail.queue') }}"
+         class="text-sm px-4 py-2 rounded-xl border border-line bg-white text-muted hover:text-ink transition">
+        Queue
+      </a>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <form method="GET" class="bg-white border border-line rounded-2xl px-5 py-4 mb-6 flex flex-wrap gap-3 items-end">
+    <div>
+      <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1">Event</label>
+      <select name="event" class="border border-line rounded-xl px-3 py-2 text-sm bg-faint outline-none">
+        <option value="">All events</option>
+        {% for ev in events %}
+        <option value="{{ ev }}" {% if f_event == ev %}selected{% endif %}>{{ event_labels[ev] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1">Status</label>
+      <select name="status" class="border border-line rounded-xl px-3 py-2 text-sm bg-faint outline-none">
+        <option value="">All</option>
+        <option value="sent"   {% if f_status == 'sent'   %}selected{% endif %}>Sent</option>
+        <option value="failed" {% if f_status == 'failed' %}selected{% endif %}>Failed</option>
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1">Form</label>
+      <select name="form" class="border border-line rounded-xl px-3 py-2 text-sm bg-faint outline-none">
+        <option value="">All forms</option>
+        {% for f in forms %}
+        <option value="{{ f.slug }}" {% if f_form == f.slug %}selected{% endif %}>{{ f.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1">Date</label>
+      <input type="date" name="date" value="{{ f_date }}"
+             class="border border-line rounded-xl px-3 py-2 text-sm bg-faint outline-none">
+    </div>
+    <button type="submit"
+            class="bg-ink text-white text-sm px-4 py-2 rounded-xl hover:bg-indigo-900 transition">
+      Filter
+    </button>
+    <a href="{{ url_for('mail.logs') }}"
+       class="text-sm px-4 py-2 rounded-xl border border-line text-muted hover:text-ink transition">
+      Clear
+    </a>
+  </form>
+
+  <!-- Table -->
+  {% if logs %}
+  <div class="bg-white border border-line rounded-2xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-line text-xs text-muted uppercase tracking-wide">
+          <th class="px-4 py-3 text-left font-semibold">Time</th>
+          <th class="px-4 py-3 text-left font-semibold">To</th>
+          <th class="px-4 py-3 text-left font-semibold">Subject</th>
+          <th class="px-4 py-3 text-left font-semibold">Event</th>
+          <th class="px-4 py-3 text-left font-semibold">Form</th>
+          <th class="px-4 py-3 text-left font-semibold">Retries</th>
+          <th class="px-4 py-3 text-left font-semibold">Status</th>
+          <th class="px-4 py-3 text-left font-semibold"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-line">
+        {% for log in logs %}
+        <tr class="log-row">
+          <td class="px-4 py-3 font-mono text-xs text-muted whitespace-nowrap">
+            {{ log.created_at.strftime('%d %b %H:%M') }}
+          </td>
+          <td class="px-4 py-3 text-xs">
+            <div class="font-medium">{{ log.to_name or '—' }}</div>
+            <div class="text-muted font-mono">{{ log.to_email }}</div>
+          </td>
+          <td class="px-4 py-3 text-xs max-w-xs truncate">{{ log.subject }}</td>
+          <td class="px-4 py-3">
+            <span class="text-xs font-mono bg-faint border border-line px-2 py-0.5 rounded">
+              {{ event_labels.get(log.event, log.event) }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-xs text-muted">
+            {{ log.form.name if log.form else '—' }}
+          </td>
+          <td class="px-4 py-3 text-xs text-center text-muted">{{ log.retry_count }}</td>
+          <td class="px-4 py-3">
+            <span class="badge status-{{ log.status }}">{{ log.status }}</span>
+          </td>
+          <td class="px-4 py-3">
+            <button onclick="viewBody({{ log.id }})"
+                    class="text-xs px-3 py-1 rounded-lg border border-line text-muted hover:text-ink transition">
+              Body
+            </button>
+            {% if log.error %}
+            <button onclick="alert({{ log.error | tojson }})"
+                    class="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition ml-1">
+              Error
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="bg-white border border-line rounded-2xl px-6 py-16 text-center text-muted text-sm">
+    No logs found for the selected filters.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Body viewer modal -->
+<div class="body-modal" id="bodyModal">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+      <h2 class="font-semibold text-ink">Email Body</h2>
+      <button onclick="closeBody()" class="text-muted hover:text-ink text-xl leading-none">×</button>
+    </div>
+    <div id="bodyContent"
+         class="p-6 overflow-auto"
+         style="max-height:60vh"></div>
+    <div class="px-6 pb-5 flex justify-end">
+      <button onclick="closeBody()"
+              class="text-sm px-4 py-2 rounded-xl border border-line text-muted hover:text-ink transition">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function viewBody(logId) {
+  fetch(`/mail/logs/${logId}/body`)
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('bodyContent').innerHTML = d.body;
+      document.getElementById('bodyModal').classList.add('open');
+    });
+}
+function closeBody() {
+  document.getElementById('bodyModal').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBody(); });
+</script>
+{% endblock %}

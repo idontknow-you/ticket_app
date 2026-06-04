@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}Mail Queue{% endblock %}
+
+{% block head %}
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<style>
+  .status-queued   { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+  .status-sending  { background:#fffbeb; color:#d97706; border-color:#fde68a; }
+  .status-sent     { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
+  .status-failed   { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+  .badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; border:1px solid; }
+  .q-row:hover { background: #fafaf8; }
+  .edit-modal  { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.5);
+                 align-items:center; justify-content:center; }
+  .edit-modal.open { display:flex; }
+  .ql-container { font-family:inherit; font-size:13px; min-height:200px; }
+  .ql-toolbar   { border-radius:8px 8px 0 0; border-color:#e8e8e4 !important; }
+  .ql-container { border-radius:0 0 8px 8px; border-color:#e8e8e4 !important; background:#fafaf8; }
+  .locked-field { background:#f7f7f5; border-color:#e8e8e4; color:#6b7280; cursor:not-allowed; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 py-8">
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-ink">Mail Queue</h1>
+      <p class="text-sm text-muted mt-1">Manage queued, in-flight and failed emails.</p>
+    </div>
+    <div class="flex gap-2">
+      <form method="POST" action="{{ url_for('mail.process') }}">
+        <button type="submit"
+                class="bg-ink text-white text-sm px-4 py-2 rounded-xl hover:bg-indigo-900 transition">
+          Process Queue
+        </button>
+      </form>
+      <a href="{{ url_for('mail.logs') }}"
+         class="text-sm px-4 py-2 rounded-xl border border-line bg-white text-muted hover:text-ink transition">
+        View Logs
+      </a>
+    </div>
+  </div>
+
+  <!-- Status filter -->
+  <div class="flex gap-2 mb-6">
+    {% for s in ['', 'queued', 'sending', 'sent', 'failed'] %}
+    <a href="{{ url_for('mail.queue', status=s) }}"
+       class="text-sm px-4 py-1.5 rounded-xl border transition
+              {% if f_status == s %}bg-ink text-white border-ink{% else %}border-line bg-white text-muted hover:text-ink{% endif %}">
+      {{ s.title() if s else 'All' }}
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if items %}
+  <div class="bg-white border border-line rounded-2xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-line text-xs text-muted uppercase tracking-wide">
+          <th class="px-4 py-3 text-left font-semibold">Created</th>
+          <th class="px-4 py-3 text-left font-semibold">To</th>
+          <th class="px-4 py-3 text-left font-semibold">Subject</th>
+          <th class="px-4 py-3 text-left font-semibold">Event</th>
+          <th class="px-4 py-3 text-left font-semibold">Retries</th>
+          <th class="px-4 py-3 text-left font-semibold">Status</th>
+          <th class="px-4 py-3 text-left font-semibold">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-line">
+        {% for item in items %}
+        <tr class="q-row">
+          <td class="px-4 py-3 font-mono text-xs text-muted whitespace-nowrap">
+            {{ item.created_at.strftime('%d %b %H:%M') }}
+          </td>
+          <td class="px-4 py-3 text-xs">
+            <div>{{ item.to_name or '—' }}</div>
+            <div class="font-mono text-muted">{{ item.to_email }}</div>
+            {% if item.extra_recipients %}
+            <div class="text-muted text-xs mt-0.5">+{{ item.extra_recipients|length }} extra</div>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-xs max-w-xs truncate">{{ item.subject }}</td>
+          <td class="px-4 py-3">
+            <span class="text-xs font-mono bg-faint border border-line px-2 py-0.5 rounded">
+              {{ item.event.replace('_',' ') }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-xs text-center text-muted">
+            {{ item.retry_count }}/{{ item.max_retries }}
+          </td>
+          <td class="px-4 py-3">
+            <span class="badge status-{{ item.status }}">{{ item.status }}</span>
+            {% if item.last_error %}
+            <div class="text-xs text-red-500 mt-1 max-w-xs truncate" title="{{ item.last_error }}">
+              {{ item.last_error[:60] }}{% if item.last_error|length > 60 %}…{% endif %}
+            </div>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex gap-1">
+              <button onclick="openEdit({{ item.id }})"
+                      class="text-xs px-3 py-1 rounded-lg border border-line text-muted hover:text-ink transition">
+                Edit
+              </button>
+              {% if item.status in ['queued', 'failed'] %}
+              <form method="POST" action="{{ url_for('mail.queue_send', item_id=item.id) }}"
+                    onsubmit="return confirm('Send this email now?')">
+                <button type="submit"
+                        class="text-xs px-3 py-1 rounded-lg border border-ink text-ink hover:bg-ink hover:text-white transition">
+                  Send
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="bg-white border border-line rounded-2xl px-6 py-16 text-center text-muted text-sm">
+    No items in queue{% if f_status %} with status "{{ f_status }}"{% endif %}.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Pre-send Edit Modal -->
+<div class="edit-modal" id="editModal">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden flex flex-col"
+       style="max-height:92vh">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-line shrink-0">
+      <h2 class="font-semibold text-ink">Edit Before Sending</h2>
+      <button onclick="closeEdit()" class="text-muted hover:text-ink text-xl leading-none">×</button>
+    </div>
+
+    <div class="overflow-y-auto flex-1 p-6 space-y-5">
+
+      <!-- Locked fields (read-only display) -->
+      <div class="bg-faint border border-line rounded-xl p-4 space-y-2">
+        <p class="text-xs text-muted font-semibold uppercase tracking-wide mb-2">Ticket Info (read-only)</p>
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div><span class="text-muted">Event:</span> <span id="ei_event" class="font-mono ml-1"></span></div>
+          <div><span class="text-muted">Form:</span> <span id="ei_form" class="ml-1"></span></div>
+          <div><span class="text-muted">Status:</span> <span id="ei_status" class="badge ml-1"></span></div>
+        </div>
+      </div>
+
+      <!-- Editable: subject -->
+      <div>
+        <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">Subject</label>
+        <input type="text" id="ei_subject"
+               class="w-full border border-line rounded-xl px-3 py-2.5 text-sm bg-faint
+                      outline-none focus:border-ink focus:bg-white">
+      </div>
+
+      <!-- Editable: body (WYSIWYG) -->
+      <div>
+        <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">Body</label>
+        <div id="ei_editor" style="min-height:200px"></div>
+      </div>
+
+      <!-- Extra recipients -->
+      <div>
+        <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">Extra Recipients</label>
+        <div id="extraRecipList" class="space-y-2 mb-2"></div>
+        <button type="button" onclick="addRecipRow()"
+                class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-ink transition">
+          + Add recipient
+        </button>
+      </div>
+
+      <!-- Note appended to email -->
+      <div>
+        <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">
+          Append Note <span class="text-muted font-normal">(shown at bottom of email)</span>
+        </label>
+        <textarea id="ei_note" rows="3"
+                  class="w-full border border-line rounded-xl px-3 py-2 text-sm bg-faint
+                         outline-none focus:border-ink resize-none"
+                  placeholder="Optional extra context…"></textarea>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 border-t border-line flex justify-end gap-3 shrink-0">
+      <button onclick="closeEdit()"
+              class="text-sm px-4 py-2 rounded-xl border border-line text-muted hover:text-ink transition">
+        Cancel
+      </button>
+      <button onclick="saveEdit(false)"
+              class="text-sm px-4 py-2 rounded-xl border border-ink text-ink hover:bg-ink hover:text-white transition">
+        Save Only
+      </button>
+      <button onclick="saveEdit(true)"
+              class="text-sm px-5 py-2 rounded-xl bg-ink text-white hover:bg-indigo-900 transition">
+        Save &amp; Send Now
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let editQuill = null;
+let currentItemId = null;
+
+// Init Quill in the modal
+editQuill = new Quill('#ei_editor', {
+  theme: 'snow',
+  modules: {
+    toolbar: [
+      ['bold','italic','underline'],
+      [{ header:[1,2,false] }],
+      [{ color:[] }],
+      ['link'],
+      [{ list:'ordered' }, { list:'bullet' }],
+      ['clean'],
+    ]
+  }
+});
+
+function openEdit(itemId) {
+  currentItemId = itemId;
+  fetch(`/mail/queue/${itemId}/edit`)
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('ei_subject').value = d.subject || '';
+      editQuill.root.innerHTML = d.html_body || '';
+      document.getElementById('ei_note').value = d.extra_note || '';
+      document.getElementById('ei_event').textContent  = d.event.replace(/_/g,' ');
+      document.getElementById('ei_form').textContent   = d.form_name || '—';
+      document.getElementById('ei_status').textContent = d.status;
+
+      // Extra recipients
+      const list = document.getElementById('extraRecipList');
+      list.innerHTML = '';
+      (d.extra_recipients || []).forEach(r => addRecipRow(r.email, r.name));
+
+      document.getElementById('editModal').classList.add('open');
+    });
+}
+
+function closeEdit() {
+  document.getElementById('editModal').classList.remove('open');
+  currentItemId = null;
+}
+
+function addRecipRow(email='', name='') {
+  const list = document.getElementById('extraRecipList');
+  const row  = document.createElement('div');
+  row.className = 'flex gap-2 items-center';
+  row.innerHTML = `
+    <input type="email" placeholder="email@example.com" value="${email}"
+           class="flex-1 border border-line rounded-xl px-3 py-2 text-sm bg-faint outline-none focus:border-ink"
+           data-role="recip-email">
+    <input type="text" placeholder="Name (optional)" value="${name}"
+           class="w-36 border border-line rounded-xl px-3 py-2 text-sm bg-faint outline-none focus:border-ink"
+           data-role="recip-name">
+    <button type="button" onclick="this.closest('div').remove()"
+            class="text-muted hover:text-red-500 text-lg leading-none">×</button>
+  `;
+  list.appendChild(row);
+}
+
+function saveEdit(sendNow) {
+  const rows   = document.querySelectorAll('#extraRecipList > div');
+  const extra  = [];
+  rows.forEach(r => {
+    const e = r.querySelector('[data-role=recip-email]').value.trim();
+    const n = r.querySelector('[data-role=recip-name]').value.trim();
+    if (e) extra.push({ email: e, name: n });
+  });
+
+  const payload = {
+    subject:           document.getElementById('ei_subject').value,
+    html_body:         editQuill.root.innerHTML,
+    extra_note:        document.getElementById('ei_note').value,
+    extra_recipients:  extra,
+  };
+
+  fetch(`/mail/queue/${currentItemId}/save`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(() => {
+    closeEdit();
+    if (sendNow) {
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/mail/queue/${currentItemId}/send`;
+      document.body.appendChild(form);
+      form.submit();
+    } else {
+      location.reload();
+    }
+  });
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEdit(); });
+</script>
+{% endblock %}

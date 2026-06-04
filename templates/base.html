@@ -84,11 +84,18 @@
         </a>
         {% if current_user.is_superadmin %}
         <a
+          href="{{ url_for('mail.templates_global') }}"
+          class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('mail') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}"
+        >
+          Mail
+        </a>
+        <a
           href="{{ url_for('admin.panel') }}"
           class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('admin') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}"
         >
           Admin Panel
         </a>
+        
         {% endif %} {% endif %}
       </div>
 

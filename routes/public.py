@@ -5,10 +5,10 @@ from models.wiki_page import WikiPage
 from sqlalchemy import case
 from extensions import db
 from werkzeug.utils import secure_filename
+from models.carousel_item import CarouselItem
 
 public_bp = Blueprint("public", __name__)
 
-# Map builder pill values → accepted MIME / extension strings
 ALLOWED_TYPE_MAP = {
     "Images": "image/*",
     "PDF":    "application/pdf",
@@ -16,30 +16,33 @@ ALLOWED_TYPE_MAP = {
     "Excel":  ".xls,.xlsx",
     "Video":  "video/*",
     "Audio":  "audio/*",
-    "Any":    None,   # no restriction
+    "Any":    None,
 }
 
 
 def _save_upload(file_obj, field_cfg):
-    """
-    Save one uploaded file to UPLOAD_FOLDER.
-    Returns a dict with filename / original_name / url, or None on failure.
-    """
     if not file_obj or not file_obj.filename:
         return None
-
     original  = secure_filename(file_obj.filename)
     ext       = os.path.splitext(original)[1]
     unique    = f"{uuid.uuid4().hex}{ext}"
-
     upload_dir = current_app.config["UPLOAD_FOLDER"]
     file_obj.save(os.path.join(upload_dir, unique))
-
     return {
         "filename":      unique,
         "original_name": original,
         "url":           f"/static/uploads/{unique}",
     }
+
+
+def _get_carousel_items():
+    return (
+        CarouselItem.query
+        .join(CarouselItem.page)
+        .filter(WikiPage.is_deleted == False, WikiPage.is_published == True)
+        .order_by(CarouselItem.sort_order)
+        .all()
+    )
 
 
 @public_bp.route("/")
@@ -66,11 +69,14 @@ def index():
         .all()
     )
 
+    carousel_items = _get_carousel_items()
+
     return render_template("public/index.html",
                            forms=forms,
                            active_form=active_form,
                            active_form_id=active_form_id,
-                           wiki_pages=wiki_pages)
+                           wiki_pages=wiki_pages,
+                           carousel_items=carousel_items)
 
 
 @public_bp.route("/submit/<slug>", methods=["POST"])
@@ -83,21 +89,16 @@ def submit(slug):
     data = {}
     for field in fields:
         fid = field["id"]
-
         if field["type"] == "checkbox":
             data[fid] = request.form.getlist(fid)
-
         elif field["type"] == "file":
-            # getlist handles the multiple-file case
             uploaded_files = request.files.getlist(fid)
             saved = []
             for f in uploaded_files:
                 result = _save_upload(f, field)
                 if result:
                     saved.append(result)
-            # Store as list (even single file), so the template can always iterate
             data[fid] = saved
-
         else:
             data[fid] = request.form.get(fid, "")
 
@@ -113,6 +114,13 @@ def submit(slug):
     )
     db.session.add(sub)
     db.session.commit()
+
+    # Fire mail event
+    try:
+        from services.mail_service import enqueue_event
+        enqueue_event("ticket_submitted", submission=sub)
+    except Exception:
+        pass
 
     return redirect(url_for("public.success", slug=slug))
 

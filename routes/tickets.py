@@ -14,7 +14,6 @@ PRIORITIES = ["low", "medium", "high", "urgent"]
 @tickets_bp.route("/")
 @login_required
 def dashboard():
-    # ── Filters from query string ─────────────────────────────────────────────
     f_form     = request.args.get("form", "")
     f_status   = request.args.get("status", "")
     f_priority = request.args.get("priority", "")
@@ -35,7 +34,6 @@ def dashboard():
 
     submissions = query.order_by(FormSubmission.submitted_at.desc()).all()
 
-    # Simple text search over ticket_id and JSON data (string match)
     if f_search:
         term = f_search.lower()
         submissions = [
@@ -46,7 +44,6 @@ def dashboard():
 
     forms = FormConfig.query.filter_by(is_deleted=False).order_by(FormConfig.order).all()
 
-    # ── Column prefs for the active form ─────────────────────────────────────
     active_form = None
     if f_form:
         active_form = FormConfig.query.filter_by(slug=f_form, is_deleted=False).first()
@@ -72,7 +69,6 @@ def dashboard():
 @tickets_bp.route("/col-prefs", methods=["POST"])
 @login_required
 def save_col_prefs():
-    """AJAX: save column visibility for a form slug."""
     data = request.get_json()
     slug  = data.get("slug", "")
     prefs = data.get("prefs", {})
@@ -106,11 +102,14 @@ def update(submission_id):
     new_assigned = request.form.get("assigned_to")
     note_text    = request.form.get("note", "").strip()
 
-    changes = []
+    changes      = []
+    status_event = None
+    assigned_event = None
 
     if new_status and new_status in STATUSES and new_status != sub.status:
         changes.append(f"Status: {sub.status} → {new_status}")
         sub.status = new_status
+        status_event = "ticket_closed" if new_status == "closed" else "ticket_status_changed"
 
     if new_priority and new_priority in PRIORITIES and new_priority != sub.priority:
         changes.append(f"Priority: {sub.priority or '—'} → {new_priority}")
@@ -122,6 +121,7 @@ def update(submission_id):
             agent = User.query.get(aid) if aid else None
             changes.append(f"Assigned to: {agent.username if agent else 'nobody'}")
             sub.assigned_to = aid
+            assigned_event = "ticket_assigned"
 
     if note_text or changes:
         log_entry = {
@@ -136,5 +136,22 @@ def update(submission_id):
         sub.notes = notes
 
     db.session.commit()
+
+    # ── Fire mail events ──────────────────────────────────────────────────────
+    try:
+        from services.mail_service import enqueue_event
+        extra = {
+            "changed_by":  current_user.username,
+            "note_text":   note_text,
+        }
+        if status_event:
+            enqueue_event(status_event, submission=sub, extra_vars=extra)
+        if assigned_event:
+            enqueue_event(assigned_event, submission=sub, extra_vars=extra)
+        if note_text and not status_event and not assigned_event:
+            enqueue_event("ticket_reply_added", submission=sub, extra_vars=extra)
+    except Exception:
+        pass  # never break the ticket flow due to mail errors
+
     flash("Ticket updated.", "success")
     return redirect(url_for("tickets.detail", submission_id=submission_id))

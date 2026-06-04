@@ -10,6 +10,7 @@ ALLOWED_EXTENSIONS = {
     "png", "jpg", "jpeg", "gif", "webp", "zip", "txt", "csv",
 }
 MAX_SIZE = 16 * 1024 * 1024  # 16 MB
+IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
 
 # ── Queries ────────────────────────────────────────────────────────────────────
@@ -105,11 +106,11 @@ def update_page(page, title, body, parent_id, is_published, updated_by,
     if title != page.title:
         page.slug = _unique_slug(WikiPage.slugify(title), exclude_id=page.id)
 
-    page.title       = title
-    page.body        = body
-    page.parent_id   = int(parent_id) if parent_id else None
+    page.title        = title
+    page.body         = body
+    page.parent_id    = int(parent_id) if parent_id else None
     page.is_published = is_published
-    page.updated_by  = updated_by
+    page.updated_by   = updated_by
     if description is not None:
         page.description = description
     if cover_image is not None:
@@ -158,21 +159,31 @@ def save_attachment(file_storage, page_id, uploaded_by):
     return att
 
 
-def save_cover_image(file_storage):
-    """Save a cover image and return the stored filename."""
+def _save_image(file_storage, prefix):
+    """Shared helper: validate, size-check, and save an image file."""
     original = secure_filename(file_storage.filename)
     ext = original.rsplit(".", 1)[-1].lower() if "." in original else ""
-    if ext not in {"png", "jpg", "jpeg", "gif", "webp"}:
-        raise ValueError(f"'{original}' — only image files allowed for cover.")
+    if ext not in IMAGE_EXTENSIONS:
+        raise ValueError(f"'{original}' — only image files allowed (png, jpg, gif, webp).")
     file_storage.seek(0, 2)
     size = file_storage.tell()
     file_storage.seek(0)
     if size > MAX_SIZE:
-        raise ValueError(f"Cover image exceeds 16 MB.")
-    stored_name = f"cover_{uuid.uuid4().hex}.{ext}"
+        raise ValueError(f"'{original}' exceeds the 16 MB limit.")
+    stored_name = f"{prefix}_{uuid.uuid4().hex}.{ext}"
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     file_storage.save(os.path.join(UPLOAD_FOLDER, stored_name))
     return stored_name
+
+
+def save_cover_image(file_storage):
+    """Save a cover image and return the stored filename."""
+    return _save_image(file_storage, prefix="cover")
+
+
+def save_carousel_image(file_storage):
+    """Save a carousel image override and return the stored filename."""
+    return _save_image(file_storage, prefix="carousel")
 
 
 def delete_attachment(attachment):
@@ -198,6 +209,7 @@ def add_comment(page, author, text):
     page.comments = comments
     db.session.commit()
     return comments
+
 
 def delete_comment(page: WikiPage, index: int):
     page.delete_comment(index)

@@ -1,0 +1,912 @@
+{% extends "base.html" %}
+{% block title %}Mail Templates{% if form %} — {{ form.name }}{% endif %}{% endblock %}
+
+{% block head %}
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<style>
+  .ql-container { font-family: inherit; font-size: 13px; min-height: 180px; }
+  .ql-toolbar  { border-radius: 8px 8px 0 0; border-color: #e8e8e4 !important; }
+  .ql-container{ border-radius: 0 0 8px 8px; border-color: #e8e8e4 !important; background: #fafaf8; }
+  .event-card  { transition: box-shadow .15s; }
+  .event-card:has(.enabled-toggle:checked) { box-shadow: 0 0 0 2px #0b0380; }
+  .var-pill    { cursor: pointer; user-select: none; }
+  .var-pill:hover { background: #0b0380; color: #fff; border-color: #0b0380; }
+  .tab-link    { border-bottom: 2px solid transparent; }
+  .tab-link.active { border-bottom-color: #0b0380; color: #0b0380; font-weight: 600; }
+  .preview-modal  { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.5);
+                    align-items:center; justify-content:center; }
+  .preview-modal.open { display:flex; }
+
+  .vars-sidebar {
+    width: 220px; flex-shrink: 0; position: sticky; top: 0;
+    height: 100vh; overflow-y: auto; border-right: 1px solid #e8e8e4;
+    background: #fafaf8; padding: 24px 14px;
+  }
+  .event-body { display: none; }
+  .event-body.open { display: block; }
+  .card-chevron { transition: transform .2s; display: inline-block; }
+  .card-chevron.open { transform: rotate(180deg); }
+
+  .form-modal { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.5);
+                align-items:center; justify-content:center; }
+  .form-modal.open { display:flex; }
+
+  /* Custom template modal */
+  .custom-modal { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.55);
+                  align-items:center; justify-content:center; }
+  .custom-modal.open { display:flex; }
+
+  /* Recipient tag chips */
+  .recip-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #f0efff; color: #0b0380; border: 1px solid #c7c4f5;
+    border-radius: 999px; font-size: 12px; padding: 3px 10px 3px 10px;
+    max-width: 220px;
+  }
+  .recip-tag button { background: none; border: none; cursor: pointer; color: #0b0380;
+                      font-size: 14px; line-height: 1; padding: 0; margin-left: 2px; }
+
+  /* User search dropdown */
+  .user-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+    background: #fff; border: 1px solid #e8e8e4; border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.1); max-height: 220px; overflow-y: auto;
+    display: none;
+  }
+  .user-dropdown.open { display: block; }
+  .user-dropdown-item {
+    padding: 9px 14px; cursor: pointer; font-size: 13px; border-radius: 8px;
+  }
+  .user-dropdown-item:hover { background: #f0efff; }
+
+  /* Custom template library cards */
+  .custom-tmpl-card { transition: box-shadow .15s; }
+  .custom-tmpl-card:hover { box-shadow: 0 0 0 2px #0b0380; }
+
+  /* Main tabs */
+  .main-tab-panel { display: none; }
+  .main-tab-panel.active { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex" style="min-height:100vh; align-items:flex-start;">
+
+  <!-- Left sticky sidebar -->
+  <div class="vars-sidebar">
+    <p class="text-xs text-muted font-semibold uppercase tracking-wide mb-3">Insert Variable</p>
+    <p class="text-xs text-muted mb-3" style="line-height:1.5">Click any variable to copy it, then paste into a subject or body.</p>
+
+    {% if form %}
+      <p class="text-xs font-semibold text-muted uppercase tracking-wide mb-2 mt-4">Form Fields</p>
+      {% for f in form.sorted_fields %}
+      <span class="var-pill block text-xs px-2.5 py-1.5 rounded-lg border border-line bg-white text-ink mb-1.5"
+            data-var="{{ '{{' }}field_{{ f.id }}{{ '}}' }}" onclick="copyVar(this)">
+        {{ f.label }}
+      </span>
+      {% endfor %}
+      <p class="text-xs font-semibold text-muted uppercase tracking-wide mb-2 mt-4">Ticket Info</p>
+    {% endif %}
+
+    {% for key, label in all_variables %}
+    <span class="var-pill block text-xs px-2.5 py-1.5 rounded-lg border border-line bg-white text-ink mb-1.5"
+          data-var="{{ '{{' }}{{ key }}{{ '}}' }}" onclick="copyVar(this)">
+      {{ label }}
+    </span>
+    {% endfor %}
+  </div>
+
+  <!-- Main content -->
+  <div class="flex-1 min-w-0">
+    <div class="max-w-4xl mx-auto px-6 py-8">
+
+      <!-- Header -->
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-ink">Mail Templates</h1>
+          <p class="text-sm text-muted mt-1">
+            {% if form %}
+              Overrides for <strong>{{ form.name }}</strong> — leave events empty to inherit from global defaults.
+            {% else %}
+              Global defaults used by all forms unless a form-specific override exists.
+            {% endif %}
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <a href="{{ url_for('mail.logs') }}"
+             class="text-sm px-4 py-2 rounded-xl border border-line bg-white text-muted hover:text-ink transition">
+            View Logs
+          </a>
+          <a href="{{ url_for('mail.queue') }}"
+             class="text-sm px-4 py-2 rounded-xl border border-line bg-white text-muted hover:text-ink transition">
+            View Queue
+          </a>
+        </div>
+      </div>
+
+      <!-- Top tabs: Global / Per-Form / Custom Templates -->
+      <div class="flex gap-1 border-b border-line mb-6 overflow-x-auto">
+        <a href="{{ url_for('mail.templates_global') }}"
+           class="tab-link text-sm px-4 py-2.5 text-muted hover:text-ink whitespace-nowrap
+                  {% if not form %}active{% endif %}">
+          Global Defaults
+        </a>
+        <button type="button" onclick="openFormModal()"
+                class="tab-link text-sm px-4 py-2.5 text-muted hover:text-ink whitespace-nowrap
+                       {% if form %}active{% endif %}">
+          Per-Form Templates{% if form %}: {{ form.name }}{% endif %}
+        </button>
+        <button type="button" onclick="switchMainTab('custom')"
+                class="tab-link text-sm px-4 py-2.5 text-muted hover:text-ink whitespace-nowrap"
+                id="tab-custom">
+          Custom Templates
+        </button>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TAB: Event Templates (default)
+      ════════════════════════════════════════════════════════════ -->
+      <div id="panel-events" class="main-tab-panel active">
+
+        <form method="POST" id="mainForm">
+
+          <!-- Global toggle + sender overrides -->
+          <div class="bg-white border border-line rounded-2xl p-6 mb-6 flex flex-wrap gap-6 items-end">
+            <div class="flex items-center gap-3">
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="mail_enabled" value="on" class="sr-only peer"
+                       {% if tmpl.mail_enabled %}checked{% endif %}>
+                <div class="w-11 h-6 bg-gray-200 peer-checked:bg-ink rounded-full
+                            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                            after:bg-white after:rounded-full after:h-5 after:w-5
+                            after:transition-all peer-checked:after:translate-x-5"></div>
+              </label>
+              <span class="text-sm font-medium text-ink">Mail enabled</span>
+            </div>
+
+            <div class="flex gap-4 flex-1 flex-wrap">
+              <div class="flex-1 min-w-48">
+                <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1">Reply-To (optional)</label>
+                <input type="email" name="reply_to" value="{{ tmpl.reply_to or '' }}"
+                       placeholder="support@yourcompany.com"
+                       class="w-full border border-line rounded-xl px-3 py-2 text-sm bg-faint
+                              outline-none focus:border-ink focus:bg-white">
+              </div>
+              <div class="flex-1 min-w-48">
+                <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1">From Name override</label>
+                <input type="text" name="from_name" value="{{ tmpl.from_name or '' }}"
+                       placeholder="Leave blank to use SMTP default"
+                       class="w-full border border-line rounded-xl px-3 py-2 text-sm bg-faint
+                              outline-none focus:border-ink focus:bg-white">
+              </div>
+              <div class="flex items-end">
+                <button type="button" onclick="openTestModal()"
+                        class="text-sm px-4 py-2 rounded-xl border border-line bg-white
+                               text-muted hover:text-ink hover:border-ink transition">
+                  Send Test Email
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Per-event cards -->
+          <div class="space-y-3">
+            {% for event in events %}
+              {% set cfg = tmpl.get_event_cfg(event) %}
+              {% set def_subject = default_subjects.get(event, '') %}
+              {% set def_body    = default_bodies.get(event, '') %}
+              {% set recip = cfg.recipients %}
+            <div class="event-card bg-white border border-line rounded-2xl overflow-hidden" id="card-{{ event }}">
+
+              <div class="flex items-center justify-between px-6 py-4 cursor-pointer select-none"
+                   onclick="toggleCard('{{ event }}')">
+                <div class="flex items-center gap-3">
+                  <label class="relative inline-flex items-center cursor-pointer" onclick="event.stopPropagation()">
+                    <input type="checkbox" name="{{ event }}__enabled" value="on"
+                           class="sr-only peer enabled-toggle"
+                           {% if cfg.enabled %}checked{% endif %}>
+                    <div class="w-10 h-5 bg-gray-200 peer-checked:bg-ink rounded-full
+                                after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                                after:bg-white after:rounded-full after:h-4 after:w-4
+                                after:transition-all peer-checked:after:translate-x-5"></div>
+                  </label>
+                  <h3 class="text-sm font-semibold text-ink">{{ event_labels[event] }}</h3>
+                </div>
+                <div class="flex items-center gap-3">
+                  {% set raw_subject = cfg.subject or def_subject %}
+                  {% if raw_subject %}
+                    {% set clean_subject = raw_subject | replace('{{', '') | replace('}}', '') | replace('[[', '') | replace(']]', '') %}
+                    <span class="text-xs text-muted">{{ clean_subject | truncate(52, True, '…') }}</span>
+                  {% endif %}
+                  <svg class="card-chevron w-4 h-4 text-muted" id="chevron-{{ event }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="event-body border-t border-line p-6 space-y-5" id="body-panel-{{ event }}">
+                <div>
+                  <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">Subject</label>
+                  <input type="text" name="{{ event }}__subject"
+                         value="{{ cfg.subject or def_subject }}"
+                         placeholder="{{ def_subject }}"
+                         class="w-full border border-line rounded-xl px-3 py-2.5 text-sm bg-faint
+                                outline-none focus:border-ink focus:bg-white font-mono">
+                </div>
+
+                <div>
+                  <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">Body</label>
+                  <div id="editor-{{ event }}" style="min-height:200px">{{ (cfg.body or def_body)|safe }}</div>
+                  <input type="hidden" name="{{ event }}__body" id="body-{{ event }}">
+                </div>
+
+                <div class="border border-line rounded-xl p-4 bg-faint space-y-3">
+                  <p class="text-xs text-muted uppercase tracking-wide font-semibold">Who receives this email</p>
+                  <div class="flex flex-wrap gap-4">
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" name="{{ event }}__recip_submitter" value="on"
+                             {% if recip.submitter %}checked{% endif %}>
+                      Person who submitted
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" name="{{ event }}__recip_agent" value="on"
+                             {% if recip.assigned_agent %}checked{% endif %}>
+                      Assigned agent
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" name="{{ event }}__recip_admins" value="on"
+                             {% if recip.all_admins %}checked{% endif %}>
+                      All admins
+                    </label>
+                  </div>
+
+                  {% if form and email_fields %}
+                  <div class="flex items-center gap-2">
+                    <label class="text-xs text-muted">Also send to email from field:</label>
+                    <select name="{{ event }}__recip_field"
+                            class="border border-line rounded-lg px-2 py-1.5 text-sm bg-white outline-none">
+                      <option value="">— None —</option>
+                      {% for ef in email_fields %}
+                      <option value="{{ ef.id }}"
+                              {% if recip.field_email_field_id == ef.id %}selected{% endif %}>
+                        {{ ef.label }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  {% endif %}
+
+                  <div>
+                    <label class="text-xs text-muted block mb-1">Extra email addresses (one per line)</label>
+                    <textarea name="{{ event }}__custom_recipients" rows="3"
+                              placeholder="extra@example.com&#10;team@example.com"
+                              class="w-full border border-line rounded-xl px-3 py-2 text-sm bg-white
+                                     outline-none focus:border-ink resize-none font-mono"
+                      >{{ (recip.custom or []) | join('\n') }}</textarea>
+                  </div>
+                </div>
+
+                <div class="flex justify-end">
+                  <button type="button" onclick="previewEvent('{{ event }}')"
+                          class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-ink transition">
+                    Preview
+                  </button>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="mt-8 flex justify-end">
+            <button type="submit"
+                    class="bg-ink text-white text-sm font-semibold px-8 py-3 rounded-xl
+                           hover:bg-indigo-900 transition">
+              Save Templates
+            </button>
+          </div>
+        </form>
+      </div><!-- /panel-events -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TAB: Custom Templates
+      ════════════════════════════════════════════════════════════ -->
+      <div id="panel-custom" class="main-tab-panel">
+
+        <!-- Toolbar -->
+        <div class="flex items-center justify-between mb-5">
+          <p class="text-sm text-muted">Saved templates you can reuse — like newsletters, wiki updates, or announcements.</p>
+          <button type="button" onclick="openCustomModal(null)"
+                  class="flex items-center gap-2 bg-ink text-white text-sm font-semibold
+                         px-5 py-2.5 rounded-xl hover:bg-indigo-900 transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Create Template
+          </button>
+        </div>
+
+        <!-- Library grid (populated via JS / server) -->
+        <div id="customTmplGrid" class="space-y-3">
+          {% if custom_templates %}
+            {% for ct in custom_templates %}
+            <div class="custom-tmpl-card bg-white border border-line rounded-2xl px-6 py-4
+                        flex items-center justify-between gap-4 cursor-pointer"
+                 onclick="openCustomModal({{ ct | tojson }})">
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-ink truncate">{{ ct.name }}</p>
+                <p class="text-xs text-muted mt-0.5 truncate">{{ ct.subject }}</p>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <span class="text-xs text-muted">{{ ct.updated_at.strftime('%d %b %Y') if ct.updated_at else '' }}</span>
+                <button type="button"
+                        onclick="event.stopPropagation(); sendCustomDirect({{ ct.id }})"
+                        class="text-xs px-3 py-1.5 rounded-lg bg-ink text-white hover:bg-indigo-900 transition">
+                  Send
+                </button>
+                <button type="button"
+                        onclick="event.stopPropagation(); deleteCustom({{ ct.id }}, this)"
+                        class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-red-600 hover:border-red-300 transition">
+                  Delete
+                </button>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div id="customEmptyState" class="text-center py-16 text-muted">
+              <svg class="w-10 h-10 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+              <p class="text-sm">No custom templates yet.</p>
+              <p class="text-xs mt-1">Click <strong>Create Template</strong> to get started.</p>
+            </div>
+          {% endif %}
+        </div>
+
+      </div><!-- /panel-custom -->
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     MODAL: Custom Template Compose / Edit
+════════════════════════════════════════════════════════════════════════════ -->
+<div class="custom-modal" id="customModal">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col"
+       style="max-height:90vh">
+
+    <!-- Modal header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-line flex-shrink-0">
+      <h2 class="font-semibold text-ink" id="customModalTitle">New Custom Template</h2>
+      <button onclick="closeCustomModal()" class="text-muted hover:text-ink text-xl leading-none">&times;</button>
+    </div>
+
+    <!-- Modal body (scrollable) -->
+    <div class="overflow-y-auto flex-1 p-6 space-y-5">
+
+      <input type="hidden" id="ct_id">
+
+      <!-- Template name -->
+      <div>
+        <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">
+          Template Name <span class="text-red-400">*</span>
+        </label>
+        <input type="text" id="ct_name" placeholder="e.g. Monthly Newsletter, Wiki Update"
+               class="w-full border border-line rounded-xl px-3 py-2.5 text-sm bg-faint
+                      outline-none focus:border-ink focus:bg-white">
+      </div>
+
+      <!-- Subject -->
+      <div>
+        <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">Subject</label>
+        <input type="text" id="ct_subject" placeholder="Subject line…"
+               class="w-full border border-line rounded-xl px-3 py-2.5 text-sm bg-faint
+                      outline-none focus:border-ink focus:bg-white font-mono">
+      </div>
+
+      <!-- Body -->
+      <div>
+        <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">Body</label>
+        <div id="ct_editor" style="min-height:220px"></div>
+        <input type="hidden" id="ct_body">
+      </div>
+
+      <!-- Recipients -->
+      <div class="border border-line rounded-2xl p-5 bg-faint space-y-4">
+        <p class="text-xs text-muted uppercase tracking-wide font-semibold">Recipients</p>
+
+        <!-- Tag area -->
+        <div id="recipTags" class="flex flex-wrap gap-2 min-h-8"></div>
+
+        <!-- Search existing users -->
+        <div class="relative">
+          <label class="text-xs text-muted block mb-1.5">Search existing users</label>
+          <input type="text" id="userSearch" autocomplete="off"
+                 placeholder="Type name or email…"
+                 oninput="searchUsers(this.value)"
+                 class="w-full border border-line rounded-xl px-3 py-2.5 text-sm bg-white
+                        outline-none focus:border-ink">
+          <div id="userDropdown" class="user-dropdown"></div>
+        </div>
+
+        <!-- Pick from form submitters -->
+        <div>
+          <label class="text-xs text-muted block mb-1.5">Or pick from a form's submitters</label>
+          <div class="flex gap-2">
+            <select id="submitterFormPicker"
+                    class="flex-1 border border-line rounded-xl px-3 py-2 text-sm bg-white outline-none">
+              <option value="">— Select form —</option>
+              {% for f in forms %}
+              <option value="{{ f.id }}">{{ f.name }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" onclick="loadSubmitters()"
+                    class="text-sm px-4 py-2 rounded-xl border border-line bg-white
+                           text-muted hover:text-ink hover:border-ink transition">
+              Load
+            </button>
+          </div>
+          <div id="submitterList" class="mt-2 space-y-1 max-h-40 overflow-y-auto hidden"></div>
+        </div>
+
+        <!-- Type any email -->
+        <div>
+          <label class="text-xs text-muted block mb-1.5">Or type any email address</label>
+          <div class="flex gap-2">
+            <input type="email" id="manualEmail" placeholder="anyone@example.com"
+                   class="flex-1 border border-line rounded-xl px-3 py-2.5 text-sm bg-white
+                          outline-none focus:border-ink"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();addManualEmail();}">
+            <button type="button" onclick="addManualEmail()"
+                    class="text-sm px-4 py-2 rounded-xl border border-line bg-white
+                           text-muted hover:text-ink hover:border-ink transition">
+              Add
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Modal footer -->
+    <div class="px-6 py-4 border-t border-line flex-shrink-0 flex justify-between gap-3">
+      <button type="button" onclick="closeCustomModal()"
+              class="text-sm px-4 py-2 rounded-xl border border-line text-muted hover:text-ink transition">
+        Cancel
+      </button>
+      <div class="flex gap-2">
+        <button type="button" onclick="saveCustomTemplate(false)"
+                class="text-sm px-5 py-2 rounded-xl border border-line text-ink hover:bg-faint transition">
+          Save Draft
+        </button>
+        <button type="button" onclick="saveCustomTemplate(true)"
+                class="text-sm px-5 py-2 rounded-xl bg-ink text-white hover:bg-indigo-900 transition">
+          Save &amp; Send
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Form selector modal -->
+<div class="form-modal" id="formModal">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+      <h2 class="font-semibold text-ink">Select a Form</h2>
+      <button onclick="closeFormModal()" class="text-muted hover:text-ink text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-4">
+      <input type="text" id="formSearch" placeholder="Search forms…"
+             oninput="filterForms()"
+             class="w-full border border-line rounded-xl px-3 py-2 text-sm bg-faint
+                    outline-none focus:border-ink focus:bg-white mb-3">
+      <div id="formList" class="space-y-1.5 max-h-72 overflow-y-auto">
+        {% for f in forms %}
+        <button type="button"
+                onclick="window.location.href='/mail/templates/{{ f.id }}'"
+                data-name="{{ f.name | lower }}"
+                class="form-list-item w-full text-left px-4 py-2.5 rounded-xl border border-line
+                       bg-faint hover:bg-ink hover:text-white hover:border-ink text-sm transition">
+          {{ f.name }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="px-6 pb-4 flex justify-between">
+      <a href="{{ url_for('mail.templates_global') }}"
+         class="text-sm px-4 py-2 rounded-xl border border-line text-muted hover:text-ink transition">
+        Back to Global
+      </a>
+      <button onclick="closeFormModal()"
+              class="text-sm px-4 py-2 rounded-xl border border-line text-muted hover:text-ink transition">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Preview modal -->
+<div class="preview-modal" id="previewModal">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+      <h2 class="font-semibold text-ink">Preview</h2>
+      <button onclick="closePreview()" class="text-muted hover:text-ink text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-6 space-y-3">
+      <div class="text-xs text-muted font-semibold uppercase tracking-wide">Subject</div>
+      <div id="previewSubject" class="font-mono text-sm bg-faint border border-line rounded-xl px-4 py-2.5"></div>
+      <div class="text-xs text-muted font-semibold uppercase tracking-wide mt-4">Body</div>
+      <div id="previewBody" class="border border-line rounded-xl p-4 bg-white overflow-auto"
+           style="max-height:420px"></div>
+    </div>
+    <div class="px-6 pb-5 flex justify-end gap-3">
+      <button onclick="closePreview()"
+              class="text-sm px-4 py-2 rounded-xl border border-line text-muted hover:text-ink transition">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Test email modal -->
+<div class="preview-modal" id="testModal">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+      <h2 class="font-semibold text-ink">Send Test Email</h2>
+      <button onclick="closeTestModal()" class="text-muted hover:text-ink text-xl leading-none">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('mail.test_send') }}">
+      <div class="p-6 space-y-4">
+        <input type="hidden" name="redirect_to"
+               value="{{ url_for('mail.templates_form', form_id=form.id) if form else url_for('mail.templates_global') }}">
+        <input type="hidden" name="subject" id="testSubject">
+        <input type="hidden" name="body" id="testBody">
+        <div>
+          <label class="text-xs text-muted uppercase tracking-wide font-medium block mb-1.5">Send to</label>
+          <input type="email" name="test_email" placeholder="you@example.com" required
+                 class="w-full border border-line rounded-xl px-3 py-2.5 text-sm bg-faint
+                        outline-none focus:border-ink focus:bg-white">
+        </div>
+        <p class="text-xs text-muted">Uses sample data. Picks the first enabled event template.</p>
+      </div>
+      <div class="px-6 pb-5 flex justify-end gap-3">
+        <button type="button" onclick="closeTestModal()"
+                class="text-sm px-4 py-2 rounded-xl border border-line text-muted hover:text-ink transition">Cancel</button>
+        <button type="submit"
+                class="text-sm px-5 py-2 rounded-xl bg-ink text-white hover:bg-indigo-900 transition">Send</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<script>
+// ── Quill: event editors ─────────────────────────────────────────────────────
+const editors = {};
+const events  = {{ events | tojson }};
+
+events.forEach(ev => {
+  const el = document.getElementById('editor-' + ev);
+  if (!el) return;
+  editors[ev] = new Quill('#editor-' + ev, {
+    theme: 'snow',
+    modules: { toolbar: [
+      ['bold','italic','underline'],
+      [{ header:[1,2,3,false] }],
+      [{ color:[] },{ background:[] }],
+      ['link'],
+      [{ list:'ordered' },{ list:'bullet' }],
+      ['blockquote','code-block'],
+      ['clean'],
+    ]}
+  });
+});
+
+document.getElementById('mainForm').addEventListener('submit', () => {
+  events.forEach(ev => {
+    const inp = document.getElementById('body-' + ev);
+    if (inp && editors[ev]) inp.value = editors[ev].root.innerHTML;
+  });
+});
+
+// ── Quill: custom template editor ────────────────────────────────────────────
+let ctEditor = null;
+function ensureCtEditor() {
+  if (ctEditor) return;
+  ctEditor = new Quill('#ct_editor', {
+    theme: 'snow',
+    modules: { toolbar: [
+      ['bold','italic','underline'],
+      [{ header:[1,2,3,false] }],
+      [{ color:[] },{ background:[] }],
+      ['link'],
+      [{ list:'ordered' },{ list:'bullet' }],
+      ['blockquote','code-block'],
+      ['clean'],
+    ]}
+  });
+}
+
+// ── Main tab switcher ────────────────────────────────────────────────────────
+function switchMainTab(tab) {
+  document.querySelectorAll('.main-tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  document.querySelectorAll('.tab-link').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab)?.classList.add('active');
+  if (tab === 'custom') ensureCtEditor();
+}
+
+// ── Collapsible event cards ───────────────────────────────────────────────────
+function toggleCard(ev) {
+  document.getElementById('body-panel-' + ev).classList.toggle('open');
+  document.getElementById('chevron-' + ev).classList.toggle('open');
+}
+
+// ── Variable pills ────────────────────────────────────────────────────────────
+function copyVar(el) {
+  navigator.clipboard.writeText(el.dataset.var).catch(() => {});
+  el.style.background = '#0b0380'; el.style.color = '#fff'; el.style.borderColor = '#0b0380';
+  setTimeout(() => { el.style.background=''; el.style.color=''; el.style.borderColor=''; }, 600);
+}
+
+// ── Form selector modal ───────────────────────────────────────────────────────
+function openFormModal()  { document.getElementById('formModal').classList.add('open'); document.getElementById('formSearch').focus(); }
+function closeFormModal() { document.getElementById('formModal').classList.remove('open'); }
+function filterForms() {
+  const q = document.getElementById('formSearch').value.toLowerCase();
+  document.querySelectorAll('.form-list-item').forEach(i => { i.style.display = i.dataset.name.includes(q) ? '' : 'none'; });
+}
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+function previewEvent(ev) {
+  const subject = document.querySelector('input[name="' + ev + '__subject"]')?.value || '';
+  const body    = editors[ev]?.root.innerHTML || '';
+  fetch('{{ url_for("mail.preview") }}', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ subject, body })
+  }).then(r=>r.json()).then(d => {
+    document.getElementById('previewSubject').textContent = d.subject;
+    document.getElementById('previewBody').innerHTML = d.body;
+    document.getElementById('previewModal').classList.add('open');
+  });
+}
+function closePreview() { document.getElementById('previewModal').classList.remove('open'); }
+
+// ── Test modal ────────────────────────────────────────────────────────────────
+function openTestModal() {
+  let subject='', body='';
+  for (const ev of events) {
+    const tog = document.querySelector('input[name="' + ev + '__enabled"]');
+    if (tog?.checked) {
+      subject = document.querySelector('input[name="' + ev + '__subject"]')?.value || '';
+      body    = editors[ev]?.root.innerHTML || '';
+      break;
+    }
+  }
+  document.getElementById('testSubject').value = subject;
+  document.getElementById('testBody').value    = body;
+  document.getElementById('testModal').classList.add('open');
+}
+function closeTestModal() { document.getElementById('testModal').classList.remove('open'); }
+
+// ════════════════════════════════════════════════════════════════════════════
+// CUSTOM TEMPLATES
+// ════════════════════════════════════════════════════════════════════════════
+
+let ctRecipients = []; // [{email, name}]
+
+function openCustomModal(ct) {
+  ensureCtEditor();
+  ctRecipients = [];
+  renderRecipTags();
+
+  if (ct) {
+    document.getElementById('customModalTitle').textContent = 'Edit Template';
+    document.getElementById('ct_id').value      = ct.id || '';
+    document.getElementById('ct_name').value    = ct.name || '';
+    document.getElementById('ct_subject').value = ct.subject || '';
+    ctEditor.root.innerHTML = ct.body || '';
+  } else {
+    document.getElementById('customModalTitle').textContent = 'New Custom Template';
+    document.getElementById('ct_id').value      = '';
+    document.getElementById('ct_name').value    = '';
+    document.getElementById('ct_subject').value = '';
+    ctEditor.root.innerHTML = '';
+  }
+
+  document.getElementById('customModal').classList.add('open');
+  setTimeout(() => document.getElementById('ct_name').focus(), 100);
+}
+
+function closeCustomModal() {
+  document.getElementById('customModal').classList.remove('open');
+  document.getElementById('userDropdown').classList.remove('open');
+  document.getElementById('submitterList').classList.add('hidden');
+}
+
+// ── Recipient tags ────────────────────────────────────────────────────────────
+function renderRecipTags() {
+  const wrap = document.getElementById('recipTags');
+  wrap.innerHTML = '';
+  ctRecipients.forEach((r, i) => {
+    const tag = document.createElement('span');
+    tag.className = 'recip-tag';
+    tag.innerHTML = `${r.name ? `<span class="font-medium">${r.name}</span> ` : ''}<span class="opacity-70">${r.email}</span>
+      <button onclick="removeRecip(${i})" title="Remove">×</button>`;
+    wrap.appendChild(tag);
+  });
+}
+
+function addRecip(email, name='') {
+  email = email.trim().toLowerCase();
+  if (!email || ctRecipients.find(r => r.email === email)) return;
+  ctRecipients.push({ email, name });
+  renderRecipTags();
+}
+
+function removeRecip(i) {
+  ctRecipients.splice(i, 1);
+  renderRecipTags();
+}
+
+// ── Manual email input ────────────────────────────────────────────────────────
+function addManualEmail() {
+  const inp = document.getElementById('manualEmail');
+  if (inp.value) { addRecip(inp.value); inp.value = ''; }
+}
+
+// ── User search (calls /mail/users/search) ────────────────────────────────────
+let searchTimer = null;
+function searchUsers(q) {
+  clearTimeout(searchTimer);
+  const dd = document.getElementById('userDropdown');
+  if (q.length < 2) { dd.classList.remove('open'); return; }
+  searchTimer = setTimeout(() => {
+    fetch(`/mail/users/search?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(users => {
+        dd.innerHTML = users.length
+          ? users.map(u => `<div class="user-dropdown-item" onclick="addRecip('${u.email}','${u.name||''}');document.getElementById('userSearch').value='';document.getElementById('userDropdown').classList.remove('open');">
+              <span class="font-medium">${u.name||''}</span>
+              <span class="text-muted ml-1">${u.email}</span>
+            </div>`).join('')
+          : '<div class="user-dropdown-item text-muted">No users found</div>';
+        dd.classList.add('open');
+      });
+  }, 250);
+}
+
+// ── Form submitters ───────────────────────────────────────────────────────────
+function loadSubmitters() {
+  const formId = document.getElementById('submitterFormPicker').value;
+  if (!formId) return;
+  fetch(`/mail/submitters/${formId}`)
+    .then(r => r.json())
+    .then(items => {
+      const list = document.getElementById('submitterList');
+      list.classList.remove('hidden');
+      list.innerHTML = items.length
+        ? items.map(s => `<label class="flex items-center gap-2 text-sm px-2 py-1 rounded-lg hover:bg-faint cursor-pointer">
+            <input type="checkbox" onchange="if(this.checked) addRecip('${s.email}','${s.name||''}'); else removeRecipByEmail('${s.email}')">
+            <span>${s.name||''}</span><span class="text-muted">${s.email}</span>
+          </label>`).join('')
+        : '<p class="text-xs text-muted px-2">No email addresses found in submissions.</p>';
+    });
+}
+
+function removeRecipByEmail(email) {
+  ctRecipients = ctRecipients.filter(r => r.email !== email);
+  renderRecipTags();
+}
+
+// ── Save (draft or send) ──────────────────────────────────────────────────────
+function saveCustomTemplate(andSend) {
+  const name    = document.getElementById('ct_name').value.trim();
+  const subject = document.getElementById('ct_subject').value.trim();
+  const body    = ctEditor.root.innerHTML;
+  const id      = document.getElementById('ct_id').value;
+
+  if (!name) { alert('Please enter a template name.'); return; }
+
+  const payload = {
+    id:         id ? parseInt(id) : null,
+    name, subject, body,
+    recipients: ctRecipients,
+    send_now:   andSend,
+  };
+
+  fetch('/mail/custom/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      closeCustomModal();
+      refreshCustomGrid();
+      showToast(andSend ? 'Template saved and queued for sending!' : 'Template saved.');
+    } else {
+      alert('Error: ' + (d.error || 'Unknown error'));
+    }
+  });
+}
+
+function sendCustomDirect(id) {
+  if (!confirm('Send this template now to its saved recipients?')) return;
+  fetch(`/mail/custom/${id}/send`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      showToast(d.ok ? 'Queued for sending!' : 'Error: ' + d.error);
+    });
+}
+
+function deleteCustom(id, btn) {
+  if (!confirm('Delete this template?')) return;
+  fetch(`/mail/custom/${id}/delete`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) { btn.closest('.custom-tmpl-card').remove(); }
+      else alert('Error: ' + d.error);
+    });
+}
+
+function refreshCustomGrid() {
+  fetch('/mail/custom/list')
+    .then(r => r.json())
+    .then(items => {
+      const grid = document.getElementById('customTmplGrid');
+      if (!items.length) {
+        grid.innerHTML = `<div class="text-center py-16 text-muted">
+          <p class="text-sm">No custom templates yet.</p>
+          <p class="text-xs mt-1">Click <strong>Create Template</strong> to get started.</p>
+        </div>`;
+        return;
+      }
+      grid.innerHTML = items.map(ct => `
+        <div class="custom-tmpl-card bg-white border border-line rounded-2xl px-6 py-4
+                    flex items-center justify-between gap-4 cursor-pointer"
+             onclick="openCustomModal(${JSON.stringify(ct).replace(/"/g,'&quot;')})">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-ink truncate">${ct.name}</p>
+            <p class="text-xs text-muted mt-0.5 truncate">${ct.subject||''}</p>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <button type="button" onclick="event.stopPropagation();sendCustomDirect(${ct.id})"
+                    class="text-xs px-3 py-1.5 rounded-lg bg-ink text-white hover:bg-indigo-900 transition">Send</button>
+            <button type="button" onclick="event.stopPropagation();deleteCustom(${ct.id},this)"
+                    class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-red-600 hover:border-red-300 transition">Delete</button>
+          </div>
+        </div>`).join('');
+    });
+}
+
+// ── Simple toast ──────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;background:#0b0380;color:#fff;' +
+    'font-size:13px;padding:10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.2);' +
+    'animation:fadeInUp .2s ease;';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ── Escape to close ───────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closePreview(); closeTestModal(); closeFormModal(); closeCustomModal();
+  }
+});
+
+// Close user dropdown on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('#userSearch') && !e.target.closest('#userDropdown')) {
+    document.getElementById('userDropdown').classList.remove('open');
+  }
+});
+</script>
+{% endblock %}

@@ -2,6 +2,154 @@
 <div class="flex-[0.5] min-w-0 sticky top-6">
   <div class="bg-white shadow-sm border border-line rounded-2xl overflow-hidden">
 
+    <!-- Carousel -->
+    {% if carousel_items %}
+    <div class="relative overflow-hidden" style="aspect-ratio: 16/7; background:#111;"
+         id="panel-carousel"
+         onmouseenter="panelPauseCarousel()" onmouseleave="panelResumeCarousel()">
+
+      <div id="panel-carousel-track" style="display:flex;height:100%;transition:transform 0.5s cubic-bezier(0.4,0,0.2,1);will-change:transform;">
+        {% for item in carousel_items %}
+          {% set page = item.page %}
+          {% set img  = item.carousel_image or page.carousel_image or page.cover_image %}
+          <a href="{{ url_for('wiki.article', slug=page.slug) }}"
+             target="_blank" rel="noopener noreferrer"
+             style="flex:0 0 100%;position:relative;height:100%;overflow:hidden;display:block;text-decoration:none;">
+
+            {% if img %}
+              <img src="{{ url_for('static', filename='wiki_uploads/' + img) }}"
+                   alt="{{ page.title }}"
+                   style="width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease;">
+            {% else %}
+              <div style="width:100%;height:100%;background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4c1d95 100%);"></div>
+            {% endif %}
+
+            <!-- gradient overlay -->
+            <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.7) 0%,rgba(0,0,0,0.15) 55%,transparent 100%);pointer-events:none;"></div>
+
+            <!-- caption -->
+            <div style="position:absolute;bottom:0;left:0;right:0;padding:0.75rem 1rem;z-index:2;">
+              {% if page.form_config %}
+                <div style="display:inline-flex;align-items:center;gap:3px;font-size:0.6rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#fff;background:rgba(255,255,255,0.18);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.25);padding:2px 8px;border-radius:999px;margin-bottom:0.3rem;">
+                  {{ page.form_config.name }}
+                </div>
+              {% endif %}
+              <div style="font-family:Georgia,serif;font-size:1rem;font-weight:700;color:#fff;line-height:1.25;text-shadow:0 1px 4px rgba(0,0,0,0.4);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">
+                {{ page.title }}
+              </div>
+              {% if page.description %}
+              <div style="font-size:0.9rem;color:rgba(255,255,255,0.75);margin-top:0.2rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;">
+                {{ page.description }}
+              </div>
+              {% endif %}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+
+      {% if carousel_items | length > 1 %}
+      <!-- Prev -->
+      <button onclick="panelCarouselMove(-1)" aria-label="Previous"
+              style="position:absolute;top:50%;left:8px;transform:translateY(-50%);z-index:10;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.25);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <!-- Next -->
+      <button onclick="panelCarouselMove(1)" aria-label="Next"
+              style="position:absolute;top:50%;right:8px;transform:translateY(-50%);z-index:10;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.25);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <!-- Dots -->
+      <div style="position:absolute;bottom:8px;right:10px;z-index:10;display:flex;gap:4px;" id="panel-carousel-dots">
+        {% for item in carousel_items %}
+          <button onclick="panelCarouselGoTo({{ loop.index0 }})"
+                  class="panel-dot"
+                  style="width:5px;height:5px;border-radius:50%;background:{% if loop.first %}#fff{% else %}rgba(255,255,255,0.4){% endif %};border:none;padding:0;cursor:pointer;transition:background 0.2s,transform 0.2s;{% if loop.first %}transform:scale(1.3);{% endif %}">
+          </button>
+        {% endfor %}
+      </div>
+      <!-- Progress bar -->
+      <div id="panel-carousel-progress"
+           style="position:absolute;bottom:0;left:0;height:2px;background:rgba(255,255,255,0.5);z-index:10;transform-origin:left;">
+      </div>
+      {% endif %}
+    </div>
+
+    <style>
+      @keyframes panel-carousel-tick {
+        from { width: 0%; }
+        to   { width: 100%; }
+      }
+    </style>
+
+    <script>
+    (function() {
+      const INTERVAL = 5000;
+      const track    = document.getElementById('panel-carousel-track');
+      const dots     = document.querySelectorAll('#panel-carousel-dots .panel-dot');
+      const progress = document.getElementById('panel-carousel-progress');
+      if (!track) return;
+
+      const total = track.children.length;
+      if (total <= 1) return;
+
+      // Clone first slide and append for infinite left-only auto-scroll
+      track.appendChild(track.children[0].cloneNode(true));
+
+      let current = 0, timer = null, paused = false;
+
+      function goTo(idx, animate = true) {
+        current = idx;
+        track.style.transition = animate ? 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' : 'none';
+        track.style.transform  = `translateX(-${current * 100}%)`;
+        dots.forEach((d, i) => {
+          const active = i === current % total;
+          d.style.background = active ? '#fff' : 'rgba(255,255,255,0.4)';
+          d.style.transform  = active ? 'scale(1.3)' : 'scale(1)';
+        });
+        resetProgress();
+      }
+
+      // After sliding to the clone, silently snap back to real slide 0
+      track.addEventListener('transitionend', () => {
+        if (current === total) goTo(0, false);
+      });
+
+      function resetProgress() {
+        if (!progress) return;
+        progress.style.animation = 'none';
+        progress.offsetHeight;
+        progress.style.animation = `panel-carousel-tick ${INTERVAL}ms linear forwards`;
+      }
+
+      function startTimer() {
+        if (timer) clearInterval(timer);
+        timer = setInterval(() => { if (!paused) goTo(current + 1); }, INTERVAL);
+        resetProgress();
+      }
+
+      window.panelCarouselMove   = (dir) => { goTo(current + dir); startTimer(); };
+      window.panelCarouselGoTo   = (idx) => { goTo(idx); startTimer(); };
+      window.panelPauseCarousel  = () => { paused = true;  if (progress) progress.style.animationPlayState = 'paused'; };
+      window.panelResumeCarousel = () => { paused = false; if (progress) progress.style.animationPlayState = 'running'; };
+
+      // swipe
+      let tx = 0;
+      const wrap = document.getElementById('panel-carousel');
+      wrap.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+      wrap.addEventListener('touchend',   e => {
+        const dx = e.changedTouches[0].clientX - tx;
+        if (Math.abs(dx) > 40) panelCarouselMove(dx < 0 ? 1 : -1);
+      }, { passive: true });
+
+      startTimer();
+    })();
+    </script>
+    {% endif %}
+
     <div class="px-6 py-5 border-b border-line">
       <div class="flex items-center gap-2 mb-1">
         <svg class="w-4 h-4 text-ink shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,13 +175,12 @@
     <div class="divide-y divide-line" id="wiki-list-view">
       {% if wiki_pages %}
         {% for page in wiki_pages %}
-          
           <a href="{{ url_for('wiki.article', slug=page.slug) }}"
              target="_blank" rel="noopener noreferrer"
              class="wiki-item flex items-start gap-4 px-6 py-4 hover:bg-faint transition group"
              data-title="{{ page.title | lower }}"
              data-tagged="{{ 'true' if page.form_config_id == active_form_id else 'false' }}" >
-            
+
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
                 <p class="text-sm font-semibold text-ink group-hover:text-indigo-700 transition leading-snug line-clamp-2">{{ page.title }}</p>

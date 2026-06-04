@@ -12,12 +12,13 @@ class WikiPage(db.Model):
     title       = db.Column(db.String(255), nullable=False)
     slug        = db.Column(db.String(255), nullable=False, unique=True)
     body        = db.Column(db.Text, default="")
-    description = db.Column(db.String(500), default="")   # short excerpt shown on cards
+    description = db.Column(db.String(500), default="")    # short excerpt shown on cards
     cover_image = db.Column(db.String(500), nullable=True) # filename in wiki_uploads/
+    carousel_image = db.Column(db.String(500), nullable=True)  # optional override for carousel; falls back to cover_image
     is_published = db.Column(db.Boolean, default=False, nullable=False)
     order       = db.Column(db.Integer, default=0)
     likes       = db.Column(db.Integer, default=0)
-    comments    = db.Column(db.JSON, default=list)         # [{author, text, at}]
+    comments    = db.Column(db.JSON, default=list)          # [{author, text, at}]
     created_by  = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     updated_by  = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
