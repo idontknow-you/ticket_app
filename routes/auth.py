@@ -37,6 +37,12 @@ def logout():
     return redirect(url_for("auth.login"))
 
 
+@auth_bp.route("/no-access")
+@login_required
+def no_access():
+    return render_template("auth/no_access.html")
+
+
 @auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token):
     # Find user with this token

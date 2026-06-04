@@ -3,19 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      http-equiv="Cache-Control"
-      content="no-cache, no-store, must-revalidate"
-    />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <title>{% block title %}Support System{% endblock %}</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Geist:wght@300..700&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Geist:wght@300..700&display=swap" rel="stylesheet" />
 
     <script>
       tailwind.config = {
@@ -37,112 +31,100 @@
     </script>
 
     <style>
-      * {
-        -webkit-font-smoothing: antialiased;
-      }
-      body {
-        background: #d6e9f3;
-      }
-      select {
-        appearance: none;
-        -webkit-appearance: none;
-      }
+      * { -webkit-font-smoothing: antialiased; }
+      body { background: #d6e9f3; }
+      select { appearance: none; -webkit-appearance: none; }
     </style>
 
     {% block head %}{% endblock %}
   </head>
 
   <body class="font-sans text-ink min-h-screen">
-    <nav
-      class="bg-[#d6e9f3] border-b border-muted h-14 flex items-center px-8 gap-6 sticky top-0 z-50"
-    >
-      <a
-        href="{{ url_for('public.index') }}"
-        class="font-serif font-bold text-lg text-ink shrink-0 mr-2"
-        >Support System</a
-      >
+    <nav class="bg-[#d6e9f3] border-b border-muted h-14 flex items-center px-8 gap-6 sticky top-0 z-50">
+      <a href="{{ url_for('public.index') }}"
+         class="font-serif font-bold text-lg text-ink shrink-0 mr-2">
+        Support System
+      </a>
 
       <div class="flex items-center gap-1 flex-1">
         {% if current_user.is_authenticated %}
-        <a
-          href="{{ url_for('tickets.dashboard') }}"
-          class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('tickets') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}"
-        >
-          Dashboard
-        </a>
-        <a
-          href="{{ url_for('forms.list_forms') }}"
-          class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('forms') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}"
-        >
-          Forms
-        </a>
-        <a
-          href="{{ url_for('wiki.index') }}"
-          class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('wiki') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}"
-        >
-          Wiki
-        </a>
-        {% if current_user.is_superadmin %}
-        <a
-          href="{{ url_for('mail.templates_global') }}"
-          class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('mail') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}"
-        >
-          Mail
-        </a>
-        <a
-          href="{{ url_for('admin.panel') }}"
-          class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('admin') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}"
-        >
-          Admin Panel
-        </a>
-        
-        {% endif %} {% endif %}
+
+          
+          <a href="{{ url_for('tickets.dashboard') }}"
+             class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('tickets') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}">
+            Dashboard
+          </a>
+          
+
+          {% if current_user.is_superadmin or current_user.has_permission('forms', 'can_view') or current_user.has_permission('forms', 'can_edit') or current_user.has_permission('forms', 'can_create') or current_user.has_permission('forms', 'can_delete') %}
+          <a href="{{ url_for('forms.list_forms') }}"
+             class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('forms') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}">
+            Forms
+          </a>
+          {% endif %}
+
+          {% if current_user.is_superadmin or current_user.has_permission('wiki', 'can_view') or current_user.has_permission('wiki', 'can_edit') or current_user.has_permission('wiki', 'can_delete') or current_user.has_permission('wiki', 'can_create') %}
+          <a href="{{ url_for('wiki.index') }}"
+             class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('wiki') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}">
+            Wiki
+          </a>
+          {% endif %}
+
+          {% if current_user.is_superadmin or current_user.has_permission('mails', 'can_view') or current_user.has_permission('mails', 'can_edit') %}
+          <a href="{{ url_for('mail.templates_global') }}"
+             class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('mail') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}">
+            Mail
+          </a>
+          {% endif %}
+
+          {% if current_user.is_superadmin or current_user.has_permission('user', 'can_view') or current_user.has_permission('user', 'can_create') or current_user.has_permission('user', 'can_delete') %}
+          <a href="{{ url_for('admin.panel') }}"
+             class="text-sm px-3 py-1.5 rounded-lg transition {% if request.endpoint and request.endpoint.startswith('admin') %}bg-faint text-ink font-medium{% else %}text-muted hover:text-ink hover:bg-faint{% endif %}">
+            Admin Panel
+          </a>
+          {% endif %}
+
+        {% endif %}
       </div>
 
       <div class="flex items-center gap-4 shrink-0">
-        {% if current_user.is_authenticated %} {% if current_user.is_superadmin
-        %}
-        <a
-          href="{{ url_for('public.index') }}"
-          class="text-sm px-3 py-1.5 rounded-lg transition text-muted hover:text-ink hover:bg-faint"
-        >
-          Submit Ticket
-        </a>
-        {% endif %}
-        
-        <a
-          href="{{ url_for('auth.logout') }}"
-          class="text-sm px-3 py-1.5 rounded-lg transition text-muted hover:text-ink hover:bg-faint"
-          >Sign out</a
-        >
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('public.index') }}"
+             class="text-sm px-3 py-1.5 rounded-lg transition text-muted hover:text-ink hover:bg-faint">
+            Submit Ticket
+          </a>
+          <a href="{{ url_for('auth.logout') }}"
+             class="text-sm px-3 py-1.5 rounded-lg transition text-muted hover:text-ink hover:bg-faint">
+            Sign out
+          </a>
         {% else %}
-        <a
-          href="{{ url_for('public.index') }}"
-          class="inline-flex items-center gap-1.5 bg-ink hover:bg-indigo-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-        >
-          Submit Ticket
-        </a>
-        <a
-          href="{{ url_for('auth.login') }}"
-          class="text-sm bg-ink hover:bg-indigo-400 text-white font-medium px-4 py-2 rounded-lg transition"
-        >
-          Login
-        </a>
+          <a href="{{ url_for('public.index') }}"
+             class="inline-flex items-center gap-1.5 bg-ink hover:bg-indigo-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+            Submit Ticket
+          </a>
+          <a href="{{ url_for('auth.login') }}"
+             class="text-sm bg-ink hover:bg-indigo-400 text-white font-medium px-4 py-2 rounded-lg transition">
+            Login
+          </a>
         {% endif %}
       </div>
     </nav>
 
-    {% with messages = get_flashed_messages(with_categories=true) %} {% if
-    messages %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
     <div class="max-w-4xl mx-auto px-4 mt-4 space-y-2">
       {% for category, message in messages %}
-      <div
-        class="px-4 py-2.5 rounded-xl text-sm border flex items-center gap-2 {% if category == 'error' %}bg-red-50 border-red-200 text-red-700 {% elif category == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-700 {% else %}bg-blue-50 border-blue-200 text-blue-700{% endif %}"
-      >
+      <div class="px-4 py-2.5 rounded-xl text-sm border flex items-center gap-2
+        {% if category == 'error' %}bg-red-50 border-red-200 text-red-700
+        {% elif category == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-700
+        {% else %}bg-blue-50 border-blue-200 text-blue-700{% endif %}">
         {{ message }}
       </div>
       {% endfor %}
     </div>
-    {% endif %} {% endwith %} {% block content %}{% endblock %}
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
   </body>
 </html>

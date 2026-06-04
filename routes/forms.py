@@ -1,9 +1,8 @@
 import re, uuid, json
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
 from flask_login import login_required, current_user
 from models import FormConfig, FormConfigVersion
 from extensions import db
-from decorators import superadmin_required
 
 forms_bp = Blueprint("forms", __name__, url_prefix="/forms")
 
@@ -39,17 +38,33 @@ def _other_forms(exclude_id=None):
     ]
 
 
+def _can_view():
+    return current_user.is_superadmin or current_user.has_permission("forms", "can_view")
+
+def _can_create():
+    return current_user.is_superadmin or current_user.has_permission("forms", "can_create")
+
+def _can_edit():
+    return current_user.is_superadmin or current_user.has_permission("forms", "can_edit")
+
+def _can_delete():
+    return current_user.is_superadmin or current_user.has_permission("forms", "can_delete")
+
+
 @forms_bp.route("/")
 @login_required
 def list_forms():
+    if not _can_view():
+        abort(403)
     forms = FormConfig.query.filter_by(is_deleted=False).order_by(FormConfig.order).all()
     return render_template("forms/list.html", forms=forms)
 
 
 @forms_bp.route("/new", methods=["GET", "POST"])
 @login_required
-@superadmin_required
 def new_form():
+    if not _can_create():
+        abort(403)
     if request.method == "POST":
         return _save(None)
     return render_template(
@@ -62,8 +77,9 @@ def new_form():
 
 @forms_bp.route("/<int:form_id>/edit", methods=["GET", "POST"])
 @login_required
-@superadmin_required
 def edit_form(form_id):
+    if not _can_edit():
+        abort(403)
     form = FormConfig.query.filter_by(id=form_id, is_deleted=False).first_or_404()
     if request.method == "POST":
         return _save(form)
@@ -84,8 +100,9 @@ def edit_form(form_id):
 
 @forms_bp.route("/<int:form_id>/publish", methods=["POST"])
 @login_required
-@superadmin_required
 def toggle_publish(form_id):
+    if not _can_edit():
+        abort(403)
     form = FormConfig.query.filter_by(id=form_id, is_deleted=False).first_or_404()
     form.is_published = not form.is_published
     db.session.commit()
@@ -96,8 +113,9 @@ def toggle_publish(form_id):
 
 @forms_bp.route("/<int:form_id>/delete", methods=["POST"])
 @login_required
-@superadmin_required
 def delete_form(form_id):
+    if not _can_delete():
+        abort(403)
     form = FormConfig.query.filter_by(id=form_id, is_deleted=False).first_or_404()
     name = form.name
     form.soft_delete()

@@ -49,7 +49,7 @@ class MailTemplate(db.Model):
 
     def get_event_cfg(self, event: str) -> dict:
         defaults = {
-            "enabled": False,
+            "enabled": True,
             "subject": "",
             "body": "",
             "recipients": {

@@ -21,7 +21,7 @@ import json
 from flask import (Blueprint, render_template, redirect, url_for,
                    request, flash, jsonify)
 from flask_login import login_required, current_user
-from decorators import superadmin_required
+from decorators import superadmin_required, permission_required
 from extensions import db
 from models import FormConfig, User
 from models.mail import MailTemplate
@@ -141,7 +141,10 @@ def _get_or_create_global() -> MailTemplate:
 def _get_or_create_form_template(form: FormConfig) -> MailTemplate:
     t = MailTemplate.query.filter_by(form_config_id=form.id, is_deleted=False).first()
     if not t:
-        t = MailTemplate(scope="form", form_config_id=form.id, templates={})
+        default_templates = {
+            event: {"enabled": True} for event in MAIL_EVENTS
+        }
+        t = MailTemplate(scope="form", form_config_id=form.id, templates=default_templates)
         db.session.add(t)
         db.session.commit()
     return t
@@ -153,7 +156,7 @@ def _get_or_create_form_template(form: FormConfig) -> MailTemplate:
 
 @mail_bp.route("/templates", methods=["GET"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def templates_global():
     tmpl            = _get_or_create_global()
     forms           = FormConfig.query.filter_by(is_deleted=False).order_by(FormConfig.order).all()
@@ -177,7 +180,7 @@ def templates_global():
 
 @mail_bp.route("/templates", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def templates_global_save():
     tmpl = _get_or_create_global()
     _save_template_from_form(tmpl, request.form)
@@ -191,7 +194,7 @@ def templates_global_save():
 
 @mail_bp.route("/templates/<int:form_id>", methods=["GET"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def templates_form(form_id):
     form  = FormConfig.query.filter_by(id=form_id, is_deleted=False).first_or_404()
     tmpl  = _get_or_create_form_template(form)
@@ -223,7 +226,7 @@ def templates_form(form_id):
 
 @mail_bp.route("/templates/<int:form_id>", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def templates_form_save(form_id):
     form = FormConfig.query.filter_by(id=form_id, is_deleted=False).first_or_404()
     tmpl = _get_or_create_form_template(form)
@@ -272,7 +275,7 @@ def _save_template_from_form(tmpl: MailTemplate, form_data):
 
 @mail_bp.route("/preview", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def preview():
     data    = request.get_json()
     subject = data.get("subject", "")
@@ -304,7 +307,7 @@ def preview():
 
 @mail_bp.route("/test-send", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def test_send():
     to_email = request.form.get("test_email", "").strip()
     subject  = request.form.get("subject", "Test email")
@@ -340,7 +343,7 @@ def test_send():
 
 @mail_bp.route("/logs")
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def logs():
     f_event  = request.args.get("event", "")
     f_status = request.args.get("status", "")
@@ -383,7 +386,7 @@ def logs():
 
 @mail_bp.route("/logs/<int:log_id>/body")
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def log_body(log_id):
     log = MailLog.query.get_or_404(log_id)
     return jsonify({"body": log.html_body or "<em>No body stored.</em>"})
@@ -395,7 +398,7 @@ def log_body(log_id):
 
 @mail_bp.route("/queue")
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def queue():
     f_status = request.args.get("status", "")
     q = MailQueue.query
@@ -407,7 +410,7 @@ def queue():
 
 @mail_bp.route("/queue/<int:item_id>/send", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def queue_send(item_id):
     ok, err = send_queue_item_now(item_id)
     if ok:
@@ -419,7 +422,7 @@ def queue_send(item_id):
 
 @mail_bp.route("/queue/<int:item_id>/edit", methods=["GET"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def queue_edit(item_id):
     item = MailQueue.query.get_or_404(item_id)
     return jsonify({
@@ -439,7 +442,7 @@ def queue_edit(item_id):
 
 @mail_bp.route("/queue/<int:item_id>/save", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def queue_save(item_id):
     item = MailQueue.query.get_or_404(item_id)
     data = request.get_json()
@@ -464,7 +467,7 @@ def queue_save(item_id):
 
 @mail_bp.route("/process", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def process():
     result = process_queue()
     flash(f"Processed queue — sent: {result['sent']}, failed: {result['failed']}, retrying: {result['skipped']}.", "success")
@@ -477,7 +480,7 @@ def process():
 
 @mail_bp.route("/custom/list")
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def custom_list():
     templates = CustomMailTemplate.query.filter_by(is_deleted=False).order_by(
         CustomMailTemplate.updated_at.desc()).all()
@@ -490,7 +493,7 @@ def custom_list():
 
 @mail_bp.route("/custom/save", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def custom_save():
     data = request.get_json()
 
@@ -530,7 +533,7 @@ def custom_save():
 
 @mail_bp.route("/custom/<int:tmpl_id>/send", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def custom_send(tmpl_id):
     tmpl = CustomMailTemplate.query.filter_by(id=tmpl_id, is_deleted=False).first_or_404()
     if not tmpl.recipients:
@@ -566,7 +569,7 @@ def _enqueue_custom(tmpl: "CustomMailTemplate") -> int:
 
 @mail_bp.route("/custom/<int:tmpl_id>/delete", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("mails", "can_edit")
 def custom_delete(tmpl_id):
     tmpl = CustomMailTemplate.query.filter_by(id=tmpl_id, is_deleted=False).first_or_404()
     tmpl.soft_delete()
@@ -580,7 +583,7 @@ def custom_delete(tmpl_id):
 
 @mail_bp.route("/users/search")
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def users_search():
     q = (request.args.get("q") or "").strip()
     if len(q) < 2:
@@ -612,7 +615,7 @@ def users_search():
 
 @mail_bp.route("/submitters/<int:form_id>")
 @login_required
-@superadmin_required
+@permission_required("mails", "can_view")
 def submitters(form_id):
     form = FormConfig.query.filter_by(id=form_id, is_deleted=False).first_or_404()
 

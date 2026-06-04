@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
-from decorators import superadmin_required
+from decorators import superadmin_required, permission_required
 from models import FormConfig
 from models.wiki_page import WikiPage
 from models.carousel_item import CarouselItem
@@ -49,6 +49,7 @@ def _get_carousel_items():
 
 @wiki_bp.route("/")
 @login_required
+@permission_required("wiki", "can_view")
 def index():
     pages           = get_all_top_level_pages()
     forms           = _get_forms()
@@ -62,7 +63,7 @@ def index():
 
 @wiki_bp.route("/carousel")
 @login_required
-@superadmin_required
+@permission_required("wiki", "can_edit")
 def carousel():
     carousel_items = _get_carousel_items()
     all_pages = (
@@ -88,7 +89,7 @@ def carousel():
 
 @wiki_bp.route("/carousel/save", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("wiki", "can_edit")
 def save_carousel():
     data = request.get_json(silent=True) or {}
     new_page_ids = [int(pid) for pid in data.get("page_ids", [])]
@@ -180,12 +181,16 @@ def save_carousel():
 # ── Article ───────────────────────────────────────────────────────────────────
 
 @wiki_bp.route("/article/<slug>")
+@login_required
+@permission_required("wiki", "can_view")
 def article(slug):
     page = get_page_by_slug(slug)
     return render_template("wiki/article.html", page=page)
 
 
 @wiki_bp.route("/article/<slug>/like", methods=["POST"])
+@login_required
+@permission_required("wiki", "can_view")
 def like(slug):
     page  = get_page_by_slug(slug)
     total = like_page(page)
@@ -193,6 +198,8 @@ def like(slug):
 
 
 @wiki_bp.route("/article/<slug>/comment", methods=["POST"])
+@login_required
+@permission_required("wiki", "can_view")
 def comment(slug):
     page = get_page_by_slug(slug)
     data = request.get_json() or {}
@@ -206,7 +213,7 @@ def comment(slug):
 
 @wiki_bp.route("/article/<slug>/comment/<int:comment_index>/delete", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("wiki", "can_edit")
 def delete_comment_route(slug, comment_index):
     page = get_page_by_slug(slug)
     delete_comment(page, comment_index)
@@ -217,7 +224,7 @@ def delete_comment_route(slug, comment_index):
 
 @wiki_bp.route("/create", methods=["GET", "POST"])
 @login_required
-@superadmin_required
+@permission_required("wiki", "can_create")
 def create():
     parent_pages = get_parent_candidates()
     forms        = _get_forms()
@@ -288,7 +295,7 @@ def create():
 
 @wiki_bp.route("/<int:page_id>/edit", methods=["GET", "POST"])
 @login_required
-@superadmin_required
+@permission_required("wiki", "can_edit")
 def edit(page_id):
     page         = get_page_or_404(page_id)
     parent_pages = get_parent_candidates(exclude_id=page_id)
@@ -365,7 +372,7 @@ def edit(page_id):
 
 @wiki_bp.route("/attachment/<int:attachment_id>/delete", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("wiki", "can_edit")
 def delete_wiki_attachment(attachment_id):
     attachment = get_attachment_or_404(attachment_id)
     page_id    = attachment.page_id
@@ -376,7 +383,7 @@ def delete_wiki_attachment(attachment_id):
 
 @wiki_bp.route("/<int:page_id>/toggle-publish", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("wiki", "can_edit")
 def toggle_publish_route(page_id):
     page      = get_page_or_404(page_id)
     published = toggle_publish(page)
@@ -387,7 +394,7 @@ def toggle_publish_route(page_id):
 
 @wiki_bp.route("/<int:page_id>/delete", methods=["POST"])
 @login_required
-@superadmin_required
+@permission_required("wiki", "can_delete")
 def delete(page_id):
     page  = get_page_or_404(page_id)
     title = page.title
@@ -398,6 +405,7 @@ def delete(page_id):
 
 @wiki_bp.route("/<int:page_id>/history")
 @login_required
+@permission_required("wiki", "can_view")
 def history(page_id):
     page      = get_page_or_404(page_id)
     snapshots = get_page_history(page_id)

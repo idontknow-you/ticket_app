@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from models import FormConfig, FormSubmission, User
 from extensions import db
 from datetime import datetime
+from decorators import permission_required
 
 tickets_bp = Blueprint("tickets", __name__, url_prefix="/tickets")
 
@@ -13,6 +14,7 @@ PRIORITIES = ["low", "medium", "high", "urgent"]
 
 @tickets_bp.route("/")
 @login_required
+@permission_required("tickets", "can_view")
 def dashboard():
     f_form     = request.args.get("form", "")
     f_status   = request.args.get("status", "")
@@ -68,6 +70,7 @@ def dashboard():
 
 @tickets_bp.route("/col-prefs", methods=["POST"])
 @login_required
+@permission_required("tickets", "can_view")
 def save_col_prefs():
     data = request.get_json()
     slug  = data.get("slug", "")
@@ -80,6 +83,7 @@ def save_col_prefs():
 
 @tickets_bp.route("/<int:submission_id>")
 @login_required
+@permission_required("tickets", "can_view")
 def detail(submission_id):
     submission = FormSubmission.query.filter_by(id=submission_id, is_deleted=False).first_or_404()
     agents = User.query.filter_by(is_active=True, is_deleted=False).all()
@@ -94,8 +98,17 @@ def detail(submission_id):
 
 @tickets_bp.route("/<int:submission_id>/update", methods=["POST"])
 @login_required
+@permission_required("tickets", "can_view")
 def update(submission_id):
     sub = FormSubmission.query.filter_by(id=submission_id, is_deleted=False).first_or_404()
+
+    can_edit   = current_user.is_superadmin or current_user.has_permission("tickets", "can_edit")
+    can_assign = current_user.is_superadmin or current_user.has_permission("tickets", "can_assign")
+
+    # Must have at least one of these to POST changes
+    if not can_edit and not can_assign:
+        flash("You don't have permission to update tickets.", "error")
+        return redirect(url_for("tickets.detail", submission_id=submission_id))
 
     new_status   = request.form.get("status")
     new_priority = request.form.get("priority")
@@ -106,22 +119,27 @@ def update(submission_id):
     status_event = None
     assigned_event = None
 
-    if new_status and new_status in STATUSES and new_status != sub.status:
-        changes.append(f"Status: {sub.status} → {new_status}")
-        sub.status = new_status
-        status_event = "ticket_closed" if new_status == "closed" else "ticket_status_changed"
+    if can_edit:
+        if new_status and new_status in STATUSES and new_status != sub.status:
+            changes.append(f"Status: {sub.status} → {new_status}")
+            sub.status = new_status
+            status_event = "ticket_closed" if new_status == "closed" else "ticket_status_changed"
 
-    if new_priority and new_priority in PRIORITIES and new_priority != sub.priority:
-        changes.append(f"Priority: {sub.priority or '—'} → {new_priority}")
-        sub.priority = new_priority
+        if new_priority and new_priority in PRIORITIES and new_priority != sub.priority:
+            changes.append(f"Priority: {sub.priority or '—'} → {new_priority}")
+            sub.priority = new_priority
 
-    if new_assigned is not None:
-        aid = int(new_assigned) if new_assigned else None
-        if aid != sub.assigned_to:
-            agent = User.query.get(aid) if aid else None
-            changes.append(f"Assigned to: {agent.username if agent else 'nobody'}")
-            sub.assigned_to = aid
-            assigned_event = "ticket_assigned"
+        if note_text:
+            pass  # handled below in log entry
+
+    if can_assign:
+        if new_assigned is not None:
+            aid = int(new_assigned) if new_assigned else None
+            if aid != sub.assigned_to:
+                agent = User.query.get(aid) if aid else None
+                changes.append(f"Assigned to: {agent.username if agent else 'nobody'}")
+                sub.assigned_to = aid
+                assigned_event = "ticket_assigned"
 
     if note_text or changes:
         log_entry = {
@@ -129,7 +147,7 @@ def update(submission_id):
             "by_id":  current_user.id,
             "by":     current_user.username,
             "action": "; ".join(changes) if changes else "",
-            "note":   note_text,
+            "note":   note_text if can_edit else "",
         }
         notes = list(sub.notes or [])
         notes.append(log_entry)
@@ -148,10 +166,21 @@ def update(submission_id):
             enqueue_event(status_event, submission=sub, extra_vars=extra)
         if assigned_event:
             enqueue_event(assigned_event, submission=sub, extra_vars=extra)
-        if note_text and not status_event and not assigned_event:
+        if note_text and can_edit and not status_event and not assigned_event:
             enqueue_event("ticket_reply_added", submission=sub, extra_vars=extra)
     except Exception:
         pass  # never break the ticket flow due to mail errors
 
     flash("Ticket updated.", "success")
     return redirect(url_for("tickets.detail", submission_id=submission_id))
+
+
+@tickets_bp.route("/<int:submission_id>/delete", methods=["POST"])
+@login_required
+@permission_required("tickets", "can_delete")
+def delete(submission_id):
+    sub = FormSubmission.query.filter_by(id=submission_id, is_deleted=False).first_or_404()
+    sub.is_deleted = True
+    db.session.commit()
+    flash("Ticket deleted.", "success")
+    return redirect(url_for("tickets.dashboard"))

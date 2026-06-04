@@ -505,12 +505,14 @@
 
         <!-- Actions -->
         <div class="flex items-center gap-3 mt-8">
+          {% if current_user.is_superadmin or current_user.has_permission('forms', 'can_edit') %}
           <button type="submit"
             class="bg-ink hover:bg-gray-800 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition">
             {% if form %}Save as new revision{% else %}Create form{% endif %}
           </button>
+          {% endif %}
 
-          {% if form %}
+          {% if form and (current_user.is_superadmin or current_user.has_permission('forms', 'can_edit')) %}
             <button type="button"
               id="togglePublishBtn"
               onclick="togglePublish()"
@@ -666,12 +668,11 @@ let fields = SEED.length ? JSON.parse(JSON.stringify(SEED)) : JSON.parse(JSON.st
 fields.forEach(f => {
   if (!f.col_span)    f.col_span    = 12;
   if (!f.conditions)  f.conditions  = [];
-  // Initialize each condition with operator if missing
   f.conditions.forEach((cond, i) => {
     if (!cond.operator) cond.operator = 'AND';
   });
   if (!f.conditions_logic)
-    f.conditions_logic = 'AND';   // kept for backwards compatibility
+    f.conditions_logic = 'AND';
   if (f.type === 'file') {
     if (!f.file_label)     f.file_label     = 'Attachments';
     if (!f.allowed_types)  f.allowed_types  = [];
@@ -731,7 +732,6 @@ function showSelectionModal(title, items, searchable = false) {
       list.appendChild(li);
     });
     
-    // Show/hide search input - always show if searchable
     if (searchable) {
       searchInput.style.display = 'block';
       searchInput.value = '';
@@ -748,7 +748,6 @@ function showSelectionModal(title, items, searchable = false) {
 function filterSelectionList(query) {
   const items = document.querySelectorAll('#selectionList li');
   const lowerQuery = query.toLowerCase();
-  
   items.forEach(item => {
     const text = item.textContent.toLowerCase();
     if (text.includes(lowerQuery)) {
@@ -804,16 +803,13 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ── generate a stable temp id for new fields ──────────────────────────────────
 function tempId() {
   return 'tmp_' + Math.random().toString(36).slice(2, 9);
 }
 
-// ── render builder ────────────────────────────────────────────────────────────
 function render() {
   const list = document.getElementById('fieldList');
   list.innerHTML = '';
-  // Ensure every field has an id (needed for condition references)
   fields.forEach(f => { if (!f.id) f.id = tempId(); });
   fields.forEach((f, i) => list.appendChild(buildCard(f, i)));
   const n = fields.length;
@@ -884,7 +880,6 @@ function buildCard(f, idx) {
       </button>
     </div>`;
 
-  // Field-level drag-to-reorder
   div.addEventListener('dragstart', e => {
     if (e.target.closest('.opt-pill')) return;
     e.dataTransfer.setData('fieldIdx', idx);
@@ -911,23 +906,17 @@ function buildCard(f, idx) {
   return div;
 }
 
-// ── CONDITIONS SECTION ────────────────────────────────────────────────────────
 function buildConditionsSection(f, idx) {
   const conditions = Array.isArray(f.conditions) ? f.conditions : [];
   const hasConditions = conditions.length > 0;
-
-  // Candidate parent fields: select/radio/checkbox that aren't this field
   const parents = fields.filter((pf, pi) => pi !== idx && PARENT_TYPES.has(pf.type));
 
-  // Rows
   let rowsHtml = '';
   conditions.forEach((cond, ci) => {
     rowsHtml += buildConditionRow(cond, idx, ci, parents);
   });
 
   const toggleClass = `conditions-toggle${hasConditions ? ' has-conditions' : ''}${hasConditions ? ' open' : ''}`;
-  const bodyClass   = `conditions-body`; // starts closed; JS toggles
-
   const parentCount = parents.length;
   const noParentsNote = parentCount === 0
     ? `<p class="text-[11px] text-gray-400 italic mt-1">Add a select, radio, or checkbox field above this one to enable branching.</p>`
@@ -945,7 +934,7 @@ function buildConditionsSection(f, idx) {
         Show if…
         ${hasConditions ? `<span style="font-size:10px;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;border-radius:4px;padding:1px 6px;margin-left:2px">${conditions.length} condition${conditions.length > 1 ? 's' : ''}</span>` : ''}
       </button>
-      <div class="${bodyClass}${hasConditions ? ' open' : ''}" id="cond-body-${idx}">
+      <div class="conditions-body${hasConditions ? ' open' : ''}" id="cond-body-${idx}">
         ${noParentsNote}
         <div id="cond-rows-${idx}" class="mt-2 space-y-1">
           ${rowsHtml}
@@ -957,12 +946,10 @@ function buildConditionsSection(f, idx) {
 }
 
 function buildConditionRow(cond, fieldIdx, condIdx, parents) {
-  // Parent field picker
   const fieldOpts = parents.map(pf =>
     `<option value="${esc(pf.id)}" ${cond.field_id === pf.id ? 'selected' : ''}>${esc(pf.label || '(unlabelled)')}</option>`
   ).join('');
 
-  // Value picker — options from the selected parent
   const selectedParent = parents.find(pf => pf.id === cond.field_id);
   const parentOpts = selectedParent && Array.isArray(selectedParent.options)
     ? selectedParent.options.map(o =>
@@ -970,7 +957,6 @@ function buildConditionRow(cond, fieldIdx, condIdx, parents) {
       ).join('')
     : '';
 
-  // Individual operator for this condition (except first one) - styled as badge
   const operator = cond.operator || 'AND';
   const operatorBadge = condIdx > 0
     ? `<select onchange="setConditionOperator(${fieldIdx}, ${condIdx}, this.value)"
@@ -1018,7 +1004,6 @@ function addCondition(idx) {
   if (!fields[idx].conditions) fields[idx].conditions = [];
   fields[idx].conditions.push({ field_id: '', value: '', operator: 'AND' });
   render();
-  // Re-open the section
   setTimeout(() => {
     const body   = document.getElementById(`cond-body-${idx}`);
     const toggle = document.getElementById(`cond-toggle-${idx}`);
@@ -1032,7 +1017,6 @@ function addCondition(idx) {
 function removeCondition(fieldIdx, condIdx) {
   fields[fieldIdx].conditions.splice(condIdx, 1);
   render();
-  // Keep section open
   setTimeout(() => {
     const body   = document.getElementById(`cond-body-${fieldIdx}`);
     const toggle = document.getElementById(`cond-toggle-${fieldIdx}`);
@@ -1042,7 +1026,7 @@ function removeCondition(fieldIdx, condIdx) {
 
 function setConditionField(fieldIdx, condIdx, parentFieldId) {
   fields[fieldIdx].conditions[condIdx].field_id = parentFieldId;
-  fields[fieldIdx].conditions[condIdx].value    = ''; // reset value when field changes
+  fields[fieldIdx].conditions[condIdx].value    = '';
   render();
   setTimeout(() => {
     const body   = document.getElementById(`cond-body-${fieldIdx}`);
@@ -1066,7 +1050,6 @@ function setConditionLogic(fieldIdx, value) {
   schedulePreview();
 }
 
-// ── OPTIONS PILL EDITOR ───────────────────────────────────────────────────────
 function buildOptsPills(f, idx) {
   const opts = Array.isArray(f.options) ? f.options : [];
   const pills = opts.map((o, oi) => `
@@ -1125,7 +1108,6 @@ function optPillEdit(fieldIdx, optIdx, val) {
   if (!trimmed) { optPillRemove(fieldIdx, optIdx); return; }
   const old = fields[fieldIdx].options[optIdx];
   fields[fieldIdx].options[optIdx] = trimmed;
-  // Update any conditions referencing this option value
   if (old !== trimmed) {
     fields.forEach(f => {
       (f.conditions || []).forEach(c => {
@@ -1166,7 +1148,6 @@ function addOption(fieldIdx, val) {
   }, 20);
 }
 
-// ── file config ───────────────────────────────────────────────────────────────
 function buildFileConfig(f, idx) {
   const allowed  = Array.isArray(f.allowed_types) ? f.allowed_types : [];
   const maxFiles = f.max_files || 1;
@@ -1224,7 +1205,6 @@ function buildFileConfig(f, idx) {
     </div>`;
 }
 
-// ── mutations ─────────────────────────────────────────────────────────────────
 function updNoRender(idx, key, val) { fields[idx][key] = val; }
 
 let previewTimer = null;
@@ -1255,7 +1235,6 @@ function removeField(idx) {
   fields.splice(idx, 1);
   fields.forEach((f, i) => {
     f.order = i;
-    // Clean up conditions referencing the removed field
     f.conditions = (f.conditions || []).filter(c => c.field_id !== removedId);
   });
   render();
@@ -1269,7 +1248,6 @@ function changeType(idx, val) {
     if (!fields[idx].max_files)     fields[idx].max_files     = 1;
     if (!fields[idx].max_size_unit) fields[idx].max_size_unit = 'MB';
   }
-  // If type is no longer a valid parent, remove conditions on other fields referencing this one
   if (!PARENT_TYPES.has(val)) {
     const thisId = fields[idx].id;
     fields.forEach((f, fi) => {
@@ -1289,7 +1267,6 @@ function toggleFileType(idx, val, checked) {
   render();
 }
 
-// ── preview ───────────────────────────────────────────────────────────────────
 function updatePreviewMeta() {
   const title = document.getElementById('formNameInput').value.trim();
   const desc  = document.getElementById('formDescInput').value.trim();
@@ -1326,21 +1303,18 @@ function renderPreview() {
 
     if (type === 'textarea') {
       inputHtml = `<textarea class="preview-inp" rows="3" placeholder="${esc(placeholder)}" disabled></textarea>`;
-
     } else if (type === 'select') {
       const opts = Array.isArray(f.options) && f.options.length
         ? f.options.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('') : '';
       inputHtml = `<select class="preview-inp" disabled>
         <option value="">Select an option</option>${opts}
       </select>`;
-
     } else if (type === 'radio' || type === 'checkbox') {
       const opts = Array.isArray(f.options) && f.options.length ? f.options : ['Option A', 'Option B'];
       inputHtml = `<div class="space-y-1.5 mt-0.5">${opts.map(o =>
         `<label class="flex items-center gap-2 text-xs text-gray-500 cursor-default">
           <input type="${type}" disabled class="w-3 h-3 accent-gray-400"> ${esc(o)}
         </label>`).join('')}</div>`;
-
     } else if (type === 'file') {
       const btnLabel = f.file_label || 'Attachments';
       const maxF     = f.max_files || 1;
@@ -1362,22 +1336,18 @@ function renderPreview() {
           <span style="padding:7px 10px;font-size:12px;color:#ccc">No file chosen</span>
         </div>
         ${hint ? `<p style="font-size:11px;color:#aaa;margin-top:4px">${esc(hint)}</p>` : ''}`;
-
     } else {
       inputHtml = `<input type="text" class="preview-inp" placeholder="${esc(placeholder)}" disabled>`;
     }
 
-    // Condition summary hint in preview
     const condHint = hasConditions ? (() => {
       const conds = f.conditions.filter(c => c.field_id && c.value);
       if (!conds.length) return '';
-      
       let hint = '↳ shown if ';
       conds.forEach((c, i) => {
         const pf = fields.find(x => x.id === c.field_id);
         const fieldName = esc(pf ? pf.label || '?' : '?');
         const value = esc(c.value);
-        
         if (i > 0) {
           const operator = c.operator || 'AND';
           hint += ` <strong>${operator}</strong> `;
@@ -1396,10 +1366,8 @@ function renderPreview() {
   });
 }
 
-
 async function importOptions(fieldIdx) {
   const optionSources = [];
-
   OTHER_FORMS.forEach(form => {
     (form.fields || []).forEach(field => {
       if (
@@ -1423,13 +1391,9 @@ async function importOptions(fieldIdx) {
 
   const items = optionSources.map(f => `${f.fieldLabel} (${f.formName})`);
   const selectedIdx = await showSelectionModal('Import Options From', items, true);
-
   if (selectedIdx < 0) return;
 
-  fields[fieldIdx].options = JSON.parse(
-    JSON.stringify(optionSources[selectedIdx].options)
-  );
-
+  fields[fieldIdx].options = JSON.parse(JSON.stringify(optionSources[selectedIdx].options));
   render();
 }
 
@@ -1441,14 +1405,12 @@ async function importForm() {
 
   const names = OTHER_FORMS.map(f => f.name);
   const selectedIdx = await showSelectionModal('Select Form to Import', names, true);
-
   if (selectedIdx < 0) return;
 
   const confirmed = await showConfirmModal(
     'Import Form?',
     `Import "${OTHER_FORMS[selectedIdx].name}"? Current fields will be replaced.`
   );
-
   if (!confirmed) return;
 
   fields = JSON.parse(
@@ -1462,10 +1424,7 @@ async function importForm() {
   render();
 }
 
-
-// ── submit ────────────────────────────────────────────────────────────────────
 document.getElementById('mainForm').addEventListener('submit', e => {
-  // Sync labels from DOM
   document.querySelectorAll('#fieldList .field-card').forEach((card, idx) => {
     const labelInp = card.querySelector('input[type=text]');
     if (labelInp) fields[idx].label = labelInp.value;
@@ -1477,7 +1436,6 @@ document.getElementById('mainForm').addEventListener('submit', e => {
     return;
   }
 
-  // Clean up: remove conditions with empty field_id or value
   const clean = fields.map(f => ({
     ...f,
     conditions: (f.conditions || []).filter(c => c.field_id && c.value),
@@ -1486,7 +1444,6 @@ document.getElementById('mainForm').addEventListener('submit', e => {
   document.getElementById('fieldsJson').value = JSON.stringify(clean);
 });
 
-// ── publish toggle ────────────────────────────────────────────────────────────
 async function togglePublish() {
   const btn = document.getElementById('togglePublishBtn');
   const isPublished = btn.dataset.published === 'true';

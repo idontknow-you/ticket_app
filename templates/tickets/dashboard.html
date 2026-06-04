@@ -192,8 +192,19 @@
           {% endif %}
 
           <td class="px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition">
-            <a href="{{ url_for('tickets.detail', submission_id=sub.id) }}"
-               class="text-xs text-ink underline-offset-2 hover:underline">View</a>
+            <div class="flex items-center justify-end gap-3">
+              <a href="{{ url_for('tickets.detail', submission_id=sub.id) }}"
+                 class="text-xs text-ink underline-offset-2 hover:underline">View</a>
+              {% if current_user.is_superadmin or current_user.has_permission('tickets', 'can_delete') %}
+              <form method="POST" action="{{ url_for('tickets.delete', submission_id=sub.id) }}"
+                    onsubmit="return confirm('Delete ticket {{ sub.ticket_id }}? This cannot be undone.')">
+                <button type="submit"
+                  class="text-xs text-red-500 hover:text-red-700 underline-offset-2 hover:underline transition">
+                  Delete
+                </button>
+              </form>
+              {% endif %}
+            </div>
           </td>
         </tr>
         {% endfor %}

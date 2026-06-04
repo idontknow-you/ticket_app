@@ -8,6 +8,58 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
+def _add_column_if_missing(db, table, column, col_type):
+    """Add a column to an existing SQLite table if it doesn't already exist."""
+    try:
+        rows = db.session.execute(db.text(f"PRAGMA table_info({table})")).fetchall()
+        existing = [r[1] for r in rows]
+        if column not in existing:
+            db.session.execute(db.text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+            db.session.commit()
+            print(f"  ↳ added column {table}.{column}")
+    except Exception as e:
+        print(f"  ↳ skipped {table}.{column}: {e}")
+
+
+def _backfill_submitter_fields(db, FormSubmission, FormConfigVersion, FormConfig):
+    """
+    Back-fill submitter_email / submitter_name on existing submissions
+    that pre-date the denormalised columns.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    orphans = FormSubmission.query.filter(
+        FormSubmission.submitter_email.is_(None)
+    ).all()
+
+    updated = 0
+    for sub in orphans:
+        fields = []
+        if sub.form_config_version_id:
+            ver = FormConfigVersion.query.get(sub.form_config_version_id)
+            if ver:
+                fields = ver.sorted_fields
+        if not fields:
+            form = FormConfig.query.get(sub.form_config_id)
+            if form:
+                fields = form.sorted_fields
+
+        for field in fields:
+            label_lower = field.get("label", "").lower()
+            fid = field.get("id", "")
+            val = sub.data.get(fid, "")
+            if isinstance(val, str):
+                if "email" in label_lower and not sub.submitter_email:
+                    sub.submitter_email = val.strip() or None
+                if any(k in label_lower for k in ("name", "full name", "your name")) and not sub.submitter_name:
+                    sub.submitter_name = val.strip() or None
+        updated += 1
+
+    if updated:
+        db.session.commit()
+        print(f"  ↳ back-filled submitter fields on {updated} submission(s)")
+
+
 def init_db(app=None):
     if app is None:
         from app import create_app
@@ -21,9 +73,16 @@ def init_db(app=None):
 
         db.create_all()
 
+        # ── Add new columns to existing DBs if not present ────────────────────
+        _add_column_if_missing(db, "form_submissions", "submitter_email", "VARCHAR(200)")
+        _add_column_if_missing(db, "form_submissions", "submitter_name",  "VARCHAR(200)")
+
         # ── Seed: migrate any FormConfig rows that have no version yet ────────
         # (handles first run on an existing DB that has the old `fields` column)
         _seed_versions(db, FormConfig, FormConfigVersion, FormSubmission)
+
+        # ── Back-fill submitter_email / submitter_name ────────────────────────
+        _backfill_submitter_fields(db, FormSubmission, FormConfigVersion, FormConfig)
 
         # ── Superadmin ────────────────────────────────────────────────────────
         if not User.query.filter_by(username="superadmin").first():

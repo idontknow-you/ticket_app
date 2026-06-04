@@ -23,6 +23,10 @@ class FormSubmission(db.Model):
     data                   = db.Column(db.JSON, default=dict)
     notes                  = db.Column(db.JSON, default=list)
 
+    # Denormalised for fast querying (mail recipients, submitters list)
+    submitter_email        = db.Column(db.String(200), nullable=True, index=True)
+    submitter_name         = db.Column(db.String(200), nullable=True)
+
     assignee = db.relationship("User", foreign_keys=[assigned_to], backref="assigned_tickets")
 
     # ------------------------------------------------------------------ helpers

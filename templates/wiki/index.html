@@ -245,8 +245,9 @@
       <h1 class="font-serif text-2xl font-bold text-ink">Knowledge Base</h1>
       <p class="text-sm text-muted mt-0.5">{{ pages | length }} article{{ 's' if pages | length != 1 }}</p>
     </div>
-    {% if current_user.is_authenticated and current_user.is_superadmin %}
+    {% if current_user.is_authenticated and (current_user.is_superadmin or current_user.has_permission('wiki', 'can_create') or current_user.has_permission('wiki', 'can_edit')) %}
       <div class="flex items-center gap-2">
+        {% if current_user.is_superadmin %}
         <a href="{{ url_for('wiki.carousel') }}"
            class="inline-flex items-center gap-1.5 bg-white border border-line text-ink text-sm font-medium px-4 py-2 rounded-xl hover:bg-faint transition">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -254,6 +255,8 @@
           </svg>
           Carousel
         </a>
+        {% endif %}
+        {% if current_user.is_superadmin or current_user.has_permission('wiki', 'can_create') %}
         <a href="{{ url_for('wiki.create') }}"
            class="inline-flex items-center gap-1.5 bg-ink text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-800 transition">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,6 +264,7 @@
           </svg>
           New Article
         </a>
+        {% endif %}
       </div>
     {% endif %}
   </div>
@@ -430,8 +434,9 @@
           {% endif %}
 
           <!-- Superadmin actions -->
-          {% if current_user.is_authenticated and current_user.is_superadmin %}
+          {% if current_user.is_authenticated and (current_user.is_superadmin or current_user.has_permission('wiki', 'can_edit') or current_user.has_permission('wiki', 'can_delete')) %}
           <div class="shrink-0 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition">
+            {% if current_user.is_superadmin or current_user.has_permission('wiki', 'can_edit') %}
             <a href="{{ url_for('wiki.edit', page_id=page.id) }}"
                class="text-xs text-muted hover:text-ink transition px-2 py-1 rounded-lg hover:bg-faint">
               Edit
@@ -447,6 +452,8 @@
                 {% if page.is_published %}Unpublish{% else %}Publish{% endif %}
               </button>
             </form>
+            {% endif %}
+            {% if current_user.is_superadmin or current_user.has_permission('wiki', 'can_delete') %}
             <form method="POST" action="{{ url_for('wiki.delete', page_id=page.id) }}"
                   onsubmit="return confirm('Delete \'{{ page.title }}\'?')">
               <button type="submit"
@@ -454,6 +461,7 @@
                 Delete
               </button>
             </form>
+            {% endif %}
           </div>
           {% endif %}
 
@@ -493,7 +501,7 @@
                  C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
       </svg>
       <p class="text-sm text-muted mb-4">No articles yet.</p>
-      {% if current_user.is_authenticated and current_user.is_superadmin %}
+      {% if current_user.is_authenticated and (current_user.is_superadmin or current_user.has_permission('wiki', 'can_create')) %}
         <a href="{{ url_for('wiki.create') }}"
            class="inline-flex items-center gap-1.5 bg-ink text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-800 transition">
           Create the first article

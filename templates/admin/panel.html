@@ -12,7 +12,7 @@
 
   <!-- Tabs -->
   <div class="flex gap-1 border-b border-line mb-6">
-    {% for t, label in [('users','Users'), ('forms','Forms'), ('wiki','Wiki'), ('settings','Settings')] %}
+    {% for t, label in [('users','Users'), ('permissions','Permissions'), ('settings','Settings')] %}
     <a href="{{ url_for('admin.panel', tab=t) }}"
        class="text-sm px-4 py-2 -mb-px border-b-2 transition
          {% if tab == t %}border-ink text-ink font-medium{% else %}border-transparent text-muted hover:text-ink{% endif %}">
@@ -134,7 +134,6 @@
               {% if user.id != current_user.id %}
               <div class="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition">
 
-                <!-- Send reset link -->
                 <form method="POST" action="{{ url_for('admin.send_reset', user_id=user.id) }}">
                   <button type="submit"
                           class="text-xs text-muted hover:text-ink transition"
@@ -143,7 +142,6 @@
                   </button>
                 </form>
 
-                <!-- Deactivate / Activate -->
                 <form method="POST" action="{{ url_for('admin.toggle_user', user_id=user.id) }}">
                   <button type="submit"
                           class="text-xs {% if user.is_active %}text-amber-500 hover:text-amber-700{% else %}text-emerald-600 hover:text-emerald-800{% endif %} transition">
@@ -151,9 +149,8 @@
                   </button>
                 </form>
 
-                <!-- Delete -->
                 <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}"
-                      onsubmit="return confirm('Permanently delete {{ user.username }}? This cannot be undone.')">
+                      onsubmit="return confirm('Delete {{ user.username }}? They will be soft-deleted and can be restored.')">
                   <button type="submit" class="text-xs text-red-400 hover:text-red-600 transition">
                     Delete
                   </button>
@@ -175,140 +172,217 @@
       {% endif %}
     </div>
 
-  {# ── FORMS TAB ── #}
-  {% elif tab == 'forms' %}
-    <div class="bg-white border border-line rounded-2xl overflow-hidden">
-      <table class="w-full text-sm border-collapse">
-        <thead>
-          <tr class="border-b border-line text-left">
-            <th class="px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Form</th>
-            <th class="px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Slug</th>
-            <th class="px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Status</th>
-            <th class="px-4 py-3"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-line">
-          {% for form in forms %}
-          <tr class="hover:bg-faint transition group">
-            <td class="px-5 py-3 font-medium text-ink">{{ form.name }}</td>
-            <td class="px-4 py-3 font-mono text-xs text-muted">{{ form.slug }}</td>
-            <td class="px-4 py-3">
-              {% if form.is_published %}
-                <span class="text-xs font-medium text-emerald-600">Published</span>
-              {% else %}
-                <span class="text-xs text-muted">Draft</span>
-              {% endif %}
-            </td>
-            <td class="px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition">
-              <a href="{{ url_for('forms.edit_form', form_id=form.id) }}"
-                 class="text-xs text-ink hover:underline underline-offset-2">Edit</a>
-            </td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="4" class="px-5 py-16 text-center text-sm text-muted">No forms yet.</td>
-          </tr>
+  {# ── PERMISSIONS TAB ── #}
+  {% elif tab == 'permissions' %}
+
+    <!-- Filters -->
+    <div class="flex gap-3 mb-5">
+      <div class="relative">
+        <select id="perm-filter-user"
+                class="appearance-none border border-line rounded-lg pl-3 pr-8 py-2 text-sm text-ink bg-white
+                       focus:outline-none focus:border-ink transition font-sans cursor-pointer">
+          <option value="">All users</option>
+          {% for user in users %}
+            {% if not user.is_superadmin %}
+            <option value="{{ user.id }}">{{ user.name or user.username }}</option>
+            {% endif %}
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <a href="{{ url_for('forms.new_form') }}"
-       class="mt-4 inline-flex items-center gap-1.5 text-xs text-ink font-medium hover:underline underline-offset-2">
-      + New form
-    </a>
-
-  {# ── WIKI TAB ── #}
-  {% elif tab == 'wiki' %}
-
-    <div class="flex items-center justify-between mb-4">
-      <p class="text-xs text-muted">{{ wiki_pages | length }} article{{ 's' if wiki_pages | length != 1 }}</p>
-      <a href="{{ url_for('wiki.create') }}"
-         class="inline-flex items-center gap-1.5 bg-ink text-white text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-800 transition">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </select>
+        <svg class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
         </svg>
-        New Article
-      </a>
+      </div>
+      <div class="relative">
+        <select id="perm-filter-module"
+                class="appearance-none border border-line rounded-lg pl-3 pr-8 py-2 text-sm text-ink bg-white
+                       focus:outline-none focus:border-ink transition font-sans cursor-pointer">
+          <option value="">All modules</option>
+          {% for mod in permission_modules %}
+          <option value="{{ mod }}">{{ mod|capitalize }}</option>
+          {% endfor %}
+        </select>
+        <svg class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </div>
+      <!-- Live save indicator -->
+      <div id="perm-status" class="flex items-center gap-1.5 text-xs text-muted ml-auto opacity-0 transition-opacity duration-300">
+        <svg id="perm-status-icon" class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span id="perm-status-text">Saved</span>
+      </div>
     </div>
 
+    <!-- Permission matrix -->
     <div class="bg-white border border-line rounded-2xl overflow-hidden">
-      <table class="w-full text-sm border-collapse">
+      <table class="w-full text-sm border-collapse" id="perm-table">
         <thead>
-          <tr class="border-b border-line text-left">
-            <th class="px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Title</th>
-            <th class="px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Relevant Form</th>
-            <th class="px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Status</th>
-            <th class="px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Updated</th>
-            <th class="px-4 py-3"></th>
+          <tr class="border-b border-line text-left bg-faint">
+            <th class="px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider w-40">User</th>
+            <th class="px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider w-32">Module</th>
+            {% for action in permission_actions %}
+            <th class="px-3 py-3 text-xs font-semibold text-muted uppercase tracking-wider text-center">
+              {{ action.replace('can_', '') }}
+            </th>
+            {% endfor %}
           </tr>
         </thead>
         <tbody class="divide-y divide-line">
-          {% for page in wiki_pages %}
-          <tr class="hover:bg-faint transition group">
+          {% for user in users %}
+            {% if not user.is_superadmin %}
+              {% for mod in permission_modules %}
+              <tr class="hover:bg-faint transition perm-row"
+                  data-user-id="{{ user.id }}"
+                  data-module="{{ mod }}">
 
-            <td class="px-5 py-3">
-              <div>
-                <p class="font-medium text-ink leading-tight">{{ page.title }}</p>
-                {% if page.description %}
-                  <p class="text-xs text-muted mt-0.5 truncate max-w-xs">{{ page.description }}</p>
+                {% if loop.first %}
+                <td class="px-5 py-3 align-top" rowspan="{{ permission_modules|length }}">
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-muted shrink-0">
+                      {{ (user.name or user.username)[0].upper() }}
+                    </div>
+                    <div>
+                      <p class="font-medium text-ink text-xs leading-tight">{{ user.name or user.username }}</p>
+                      <p class="text-xs text-muted font-mono">{{ user.username }}</p>
+                    </div>
+                  </div>
+                </td>
                 {% endif %}
-              </div>
-            </td>
 
-            <td class="px-4 py-3">
-              {% if page.form_config %}
-                <span class="inline-flex items-center text-xs font-medium text-[#0b0380] bg-[#d6e9f3] px-2 py-0.5 rounded-full">
-                  {{ page.form_config.name }}
-                </span>
-              {% else %}
-                <span class="text-xs text-gray-300">—</span>
-              {% endif %}
-            </td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full
+                    {% if mod == 'dashboard' %}bg-blue-50 text-blue-700
+                    {% elif mod == 'tickets' %}bg-indigo-100 text-indigo-700
+                    {% elif mod == 'forms' %}bg-rose-50 text-rose-700
+                    {% elif mod == 'user' %}bg-yellow-100 text-yellow-700
+                    {% elif mod == 'wiki' %}bg-purple-100 text-purple-700
+                    {% elif mod == 'mails' %}bg-amber-100 text-amber-700
+                    {% elif mod == 'reports' %}bg-emerald-100 text-emerald-700
+                    {% elif mod == 'settings' %}bg-gray-100 text-gray-700
+                    {% endif %}">
+                    {{ mod|capitalize }}
+                  </span>
+                </td>
 
-            <td class="px-4 py-3">
-              <form method="POST" action="{{ url_for('wiki.toggle_publish_route', page_id=page.id) }}">
-                <button type="submit"
-                        class="text-xs font-medium transition
-                          {% if page.is_published %}text-emerald-600 hover:text-emerald-800{% else %}text-muted hover:text-ink{% endif %}">
-                  {% if page.is_published %}Published{% else %}Draft{% endif %}
-                </button>
-              </form>
-            </td>
+                {% for action in permission_actions %}
+                <td class="px-3 py-3 text-center">
+                  {% if action in module_actions.get(mod, []) %}
+                  <input type="checkbox"
+                         class="perm-checkbox w-4 h-4 accent-gray-900 rounded cursor-pointer"
+                         data-user-id="{{ user.id }}"
+                         data-module="{{ mod }}"
+                         data-action="{{ action }}"
+                         {% if user.permissions and user.permissions.get(mod, {}).get(action) %}checked{% endif %}>
+                  {% else %}
+                  <span class="text-gray-200">—</span>
+                  {% endif %}
+                </td>
+                {% endfor %}
 
-            <td class="px-4 py-3 text-xs text-muted font-mono">
-              {{ page.updated_at.strftime('%d %b %Y') if page.updated_at else '—' }}
-            </td>
-
-            <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition">
-                <a href="{{ url_for('wiki.article', slug=page.slug) }}"
-                   target="_blank"
-                   class="text-xs text-muted hover:text-ink transition">View</a>
-                <a href="{{ url_for('wiki.edit', page_id=page.id) }}"
-                   class="text-xs text-ink hover:underline underline-offset-2">Edit</a>
-                <form method="POST" action="{{ url_for('wiki.delete', page_id=page.id) }}"
-                      onsubmit="return confirm('Delete \'{{ page.title }}\'?')">
-                  <button type="submit" class="text-xs text-red-400 hover:text-red-600 transition">
-                    Delete
-                  </button>
-                </form>
-              </div>
-            </td>
-
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="5" class="px-5 py-16 text-center text-sm text-muted">No articles yet.</td>
-          </tr>
+              </tr>
+              {% endfor %}
+            {% endif %}
           {% endfor %}
+
+          <!-- Superadmins row (locked) -->
+          {% for user in users %}
+            {% if user.is_superadmin %}
+            <tr class="perm-row bg-gray-50" data-user-id="{{ user.id }}" data-module="all">
+              <td class="px-5 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded-full bg-ink flex items-center justify-center text-xs font-semibold text-white shrink-0">
+                    {{ (user.name or user.username)[0].upper() }}
+                  </div>
+                  <div>
+                    <p class="font-medium text-ink text-xs leading-tight">{{ user.name or user.username }}</p>
+                    <p class="text-xs text-muted font-mono">{{ user.username }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-xs text-muted italic" colspan="{{ permission_actions|length + 1 }}">
+                Superadmin — full access to everything
+              </td>
+            </tr>
+            {% endif %}
+          {% endfor %}
+
         </tbody>
       </table>
+
+      {% if not users %}
+      <div class="py-16 text-center">
+        <p class="text-sm text-muted">No users yet.</p>
+      </div>
+      {% endif %}
     </div>
+
+    <script>
+    (function () {
+      const filterUser   = document.getElementById('perm-filter-user');
+      const filterModule = document.getElementById('perm-filter-module');
+      const status       = document.getElementById('perm-status');
+      const statusText   = document.getElementById('perm-status-text');
+      const statusIcon   = document.getElementById('perm-status-icon');
+      let hideTimer;
+
+      function applyFilter() {
+        const uid = filterUser.value;
+        const mod = filterModule.value;
+        document.querySelectorAll('#perm-table tbody tr.perm-row').forEach(row => {
+          const rowUser   = row.dataset.userId;
+          const rowModule = row.dataset.module;
+          const userMatch   = !uid || rowUser === uid;
+          const moduleMatch = !mod || rowModule === mod || rowModule === 'all';
+          row.style.display = (userMatch && moduleMatch) ? '' : 'none';
+        });
+      }
+
+      filterUser.addEventListener('change', applyFilter);
+      filterModule.addEventListener('change', applyFilter);
+
+      function showStatus(ok, msg) {
+        clearTimeout(hideTimer);
+        statusText.textContent = msg;
+        statusIcon.innerHTML = ok
+          ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+          : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
+        statusIcon.className = `w-3.5 h-3.5 ${ok ? 'text-emerald-500' : 'text-red-400'}`;
+        status.classList.remove('opacity-0');
+        hideTimer = setTimeout(() => status.classList.add('opacity-0'), 2000);
+      }
+
+      document.querySelectorAll('.perm-checkbox').forEach(cb => {
+        cb.addEventListener('change', async function () {
+          const userId = this.dataset.userId;
+          const module = this.dataset.module;
+          const action = this.dataset.action;
+          const value  = this.checked;
+          try {
+            const res = await fetch(`/admin/users/${userId}/permissions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ module, action, value }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+              showStatus(true, 'Saved');
+            } else {
+              showStatus(false, data.error || 'Error');
+              this.checked = !value;
+            }
+          } catch (e) {
+            showStatus(false, 'Network error');
+            this.checked = !value;
+          }
+        });
+      });
+    })();
+    </script>
 
   {# ── SETTINGS TAB ── #}
   {% elif tab == 'settings' %}
 
-    <!-- SMTP Config -->
     <div class="bg-white border border-line rounded-2xl p-6 mb-5">
       <h2 class="text-xs font-semibold text-muted uppercase tracking-wider mb-1">SMTP Configuration</h2>
       <p class="text-xs text-muted mb-5">Used for sending password reset emails and notifications.</p>
@@ -344,7 +418,6 @@
       </form>
     </div>
 
-    <!-- Test SMTP -->
     <div class="bg-white border border-line rounded-2xl p-6">
       <h2 class="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Test Email</h2>
       <p class="text-xs text-muted mb-4">Send a test email to verify your SMTP configuration.</p>

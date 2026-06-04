@@ -213,7 +213,7 @@
                     </span>
                   </div>
 
-                  {% if wiki_perm and wiki_perm.can_delete %}
+                  {% if current_user.is_superadmin or current_user.has_permission('wiki', 'can_delete') %}
                   <button type="button"
                           class="ml-4 shrink-0 text-xs font-medium text-red-400 hover:text-red-600 transition"
                           data-delete-url="{{ url_for('wiki.delete_wiki_attachment', attachment_id=att.id) }}"
@@ -230,7 +230,7 @@
               <p class="text-sm text-gray-400 mb-3 italic" id="no-attachments-msg">No attachments yet.</p>
               {% endif %}
 
-              {% if wiki_perm and wiki_perm.can_edit %}
+              {% if current_user.is_superadmin or current_user.has_permission('wiki', 'can_edit') %}
               <div class="rounded-lg border border-dashed border-gray-300 px-4 py-4 bg-gray-50">
                 <p class="text-xs text-gray-500 mb-2">
                   PDF, Word, Excel, PowerPoint, images, ZIP — max 16 MB each
