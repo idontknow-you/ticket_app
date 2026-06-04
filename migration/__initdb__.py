@@ -29,7 +29,6 @@ def init_db(app=None):
         if not User.query.filter_by(username="superadmin").first():
             admin = User(
                 username="superadmin",
-                email="idkwhyihv123@gmail.com",
                 is_superadmin=True,
                 is_active=True,
                 permissions={},
