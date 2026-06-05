@@ -20,22 +20,12 @@ ALLOWED_TYPE_MAP = {
 }
 
 
-PUBLIC_ALLOWED_EXTENSIONS = {
-    "jpg", "jpeg", "png", "gif", "webp",
-    "pdf", "doc", "docx", "xls", "xlsx",
-    "ppt", "pptx", "txt", "csv", "zip",
-}
-
-
 def _save_upload(file_obj, field_cfg):
     if not file_obj or not file_obj.filename:
         return None
     original  = secure_filename(file_obj.filename)
-    ext_raw   = os.path.splitext(original)[1]           # e.g. ".PNG"
-    ext_lower = ext_raw.lstrip(".").lower()              # e.g. "png"
-    if ext_lower not in PUBLIC_ALLOWED_EXTENSIONS:
-        return None
-    unique    = f"{uuid.uuid4().hex}{ext_raw}"
+    ext       = os.path.splitext(original)[1]
+    unique    = f"{uuid.uuid4().hex}{ext}"
     upload_dir = current_app.config["UPLOAD_FOLDER"]
     file_obj.save(os.path.join(upload_dir, unique))
     return {
@@ -112,15 +102,9 @@ def submit(slug):
         else:
             data[fid] = request.form.get(fid, "")
 
-    prefix = "".join(w[0] for w in form_config.name.upper().split())[:6]
-    # Use MAX(id) scoped to this form rather than COUNT(*) to avoid:
-    #  a) race conditions under concurrent submissions
-    #  b) collisions when soft-deleted submissions affect the count
-    from sqlalchemy import func as _func
-    max_seq = db.session.query(
-        _func.max(FormSubmission.id)
-    ).filter(FormSubmission.form_config_id == form_config.id).scalar() or 0
-    ticket_id = f"{prefix}-{max_seq + 1:04d}"
+    prefix    = "".join(w[0] for w in form_config.name.upper().split())[:6]
+    count     = form_config.submissions.count() + 1
+    ticket_id = f"{prefix}-{count:04d}"
 
     sub = FormSubmission(
         form_config_id=form_config.id,
@@ -128,6 +112,17 @@ def submit(slug):
         ticket_id=ticket_id,
         data=data,
     )
+
+    # Denormalise submitter email + name for fast querying
+    for field in fields:
+        label_lower = field.get("label", "").lower()
+        fid = field.get("id", "")
+        val = data.get(fid, "")
+        if isinstance(val, str):
+            if "email" in label_lower and not sub.submitter_email:
+                sub.submitter_email = val.strip() or None
+            if any(label_lower == k for k in ("name", "full name", "your name", "full_name")) and not sub.submitter_name:
+                sub.submitter_name = val.strip() or None
     db.session.add(sub)
     db.session.commit()
 
@@ -135,6 +130,7 @@ def submit(slug):
     try:
         from services.mail_service import enqueue_event
         enqueue_event("ticket_submitted", submission=sub)
+        db.session.commit() 
     except Exception:
         pass
 
@@ -143,5 +139,5 @@ def submit(slug):
 
 @public_bp.route("/success/<slug>")
 def success(slug):
-    form_config = FormConfig.query.filter_by(slug=slug, is_deleted=False).first_or_404()
+    form_config = FormConfig.query.filter_by(slug=slug).first_or_404()
     return render_template("public/submit_success.html", form=form_config)

@@ -36,11 +36,11 @@ def _backfill_submitter_fields(db, FormSubmission, FormConfigVersion, FormConfig
     for sub in orphans:
         fields = []
         if sub.form_config_version_id:
-            ver = db.session.get(FormConfigVersion, sub.form_config_version_id)
+            ver = FormConfigVersion.query.get(sub.form_config_version_id)
             if ver:
                 fields = ver.sorted_fields
         if not fields:
-            form = db.session.get(FormConfig, sub.form_config_id)
+            form = FormConfig.query.get(sub.form_config_id)
             if form:
                 fields = form.sorted_fields
 
@@ -51,13 +51,52 @@ def _backfill_submitter_fields(db, FormSubmission, FormConfigVersion, FormConfig
             if isinstance(val, str):
                 if "email" in label_lower and not sub.submitter_email:
                     sub.submitter_email = val.strip() or None
-                if any(k in label_lower for k in ("name", "full name", "your name")) and not sub.submitter_name:
+                if any(label_lower == k for k in ("name", "full name", "your name", "full_name")) and not sub.submitter_name:
                     sub.submitter_name = val.strip() or None
         updated += 1
 
     if updated:
         db.session.commit()
         print(f"  ↳ back-filled submitter fields on {updated} submission(s)")
+
+
+def _backfill_mail_templates(db):
+    """
+    Fix MailTemplate rows that were created with templates={} or with
+    per-event dicts that have no subject/body/recipients.
+    Imports the same default builder used by the mail route.
+    """
+    try:
+        from models.mail import MailTemplate
+        from routes.mail import _default_templates_dict, MAIL_EVENTS
+
+        templates = MailTemplate.query.filter_by(is_deleted=False).all()
+        patched = 0
+        for tmpl in templates:
+            existing = tmpl.templates or {}
+            changed  = False
+            defaults = _default_templates_dict()
+
+            for event in MAIL_EVENTS:
+                evt = existing.get(event, {})
+                # Patch if subject/body/recipients are all missing
+                if not evt.get("subject") and not evt.get("body") and not evt.get("recipients"):
+                    existing[event] = defaults[event]
+                    changed = True
+                # Patch if recipients dict is missing entirely
+                elif not evt.get("recipients"):
+                    existing[event]["recipients"] = defaults[event]["recipients"]
+                    changed = True
+
+            if changed:
+                tmpl.templates = existing
+                patched += 1
+
+        if patched:
+            db.session.commit()
+            print(f"  ↳ patched {patched} mail template(s) with default subjects/bodies/recipients")
+    except Exception as e:
+        print(f"  ↳ skipped mail template backfill: {e}")
 
 
 def init_db(app=None):
@@ -77,6 +116,7 @@ def init_db(app=None):
         # ── Add new columns to existing DBs if not present ────────────────────
         _add_column_if_missing(db, "form_submissions", "submitter_email", "VARCHAR(200)")
         _add_column_if_missing(db, "form_submissions", "submitter_name",  "VARCHAR(200)")
+        _add_column_if_missing(db, "mail_templates",   "use_global_template", "BOOLEAN DEFAULT 1")
 
         # ── Seed: migrate any FormConfig rows that have no version yet ────────
         # (handles first run on an existing DB that has the old `fields` column)
@@ -85,10 +125,12 @@ def init_db(app=None):
         # ── Back-fill submitter_email / submitter_name ────────────────────────
         _backfill_submitter_fields(db, FormSubmission, FormConfigVersion, FormConfig)
 
+        # ── Patch mail templates that were created with empty templates={} ────
+        _backfill_mail_templates(db)
+
         # ── Superadmin ────────────────────────────────────────────────────────
         if not User.query.filter_by(username="superadmin").first():
             admin = User(
-                name="Super Admin",
                 username="superadmin",
                 is_superadmin=True,
                 is_active=True,

@@ -132,19 +132,44 @@ ALL_VARIABLES = [
 def _get_or_create_global() -> MailTemplate:
     t = MailTemplate.query.filter_by(scope="global", form_config_id=None, is_deleted=False).first()
     if not t:
-        t = MailTemplate(scope="global", templates={})
+        t = MailTemplate(scope="global", templates=_default_templates_dict(), mail_enabled=True)
         db.session.add(t)
         db.session.commit()
     return t
 
 
+def _default_templates_dict() -> dict:
+    """
+    Full default template config for all events.
+    Used when creating a fresh global or form-level template so every event
+    has subjects, bodies, and recipients out of the box.
+    """
+    default_recipients = {
+        "submitter":            True,
+        "assigned_agent":       False,
+        "all_admins":           False,
+        "field_email_field_id": None,
+        "custom":               [],
+    }
+    agent_recipients = {**default_recipients, "submitter": False, "assigned_agent": True}
+    both_recipients  = {**default_recipients, "assigned_agent": True}
+
+    return {
+        event: {
+            "enabled":    True,
+            "subject":    DEFAULT_SUBJECTS.get(event, ""),
+            "body":       DEFAULT_BODIES.get(event, ""),
+            "recipients": agent_recipients if event == "ticket_assigned" else default_recipients,
+        }
+        for event in MAIL_EVENTS
+    }
+
+
 def _get_or_create_form_template(form: FormConfig) -> MailTemplate:
     t = MailTemplate.query.filter_by(form_config_id=form.id, is_deleted=False).first()
     if not t:
-        default_templates = {
-            event: {"enabled": True} for event in MAIL_EVENTS
-        }
-        t = MailTemplate(scope="form", form_config_id=form.id, templates=default_templates)
+        t = MailTemplate(scope="form", form_config_id=form.id,
+                         templates=_default_templates_dict(), mail_enabled=True)
         db.session.add(t)
         db.session.commit()
     return t
@@ -237,9 +262,10 @@ def templates_form_save(form_id):
 
 def _save_template_from_form(tmpl: MailTemplate, form_data):
     """Parse the submitted form and update the MailTemplate record."""
-    tmpl.mail_enabled = form_data.get("mail_enabled") == "on"
-    tmpl.reply_to     = form_data.get("reply_to", "").strip() or None
-    tmpl.from_name    = form_data.get("from_name", "").strip() or None
+    tmpl.mail_enabled         = form_data.get("mail_enabled") == "on"
+    tmpl.reply_to             = form_data.get("reply_to", "").strip() or None
+    tmpl.from_name            = form_data.get("from_name", "").strip() or None
+    tmpl.use_global_template  = form_data.get("use_global_template") == "on"
 
     templates = {}
     for event in MAIL_EVENTS:
@@ -388,7 +414,7 @@ def logs():
 @login_required
 @permission_required("mails", "can_view")
 def log_body(log_id):
-    log = db.get_or_404(MailLog, log_id)
+    log = MailLog.query.get_or_404(log_id)
     return jsonify({"body": log.html_body or "<em>No body stored.</em>"})
 
 
@@ -424,7 +450,7 @@ def queue_send(item_id):
 @login_required
 @permission_required("mails", "can_view")
 def queue_edit(item_id):
-    item = db.get_or_404(MailQueue, item_id)
+    item = MailQueue.query.get_or_404(item_id)
     return jsonify({
         "id":               item.id,
         "to_email":         item.to_email,
@@ -444,7 +470,7 @@ def queue_edit(item_id):
 @login_required
 @permission_required("mails", "can_edit")
 def queue_save(item_id):
-    item = db.get_or_404(MailQueue, item_id)
+    item = MailQueue.query.get_or_404(item_id)
     data = request.get_json()
 
     item.subject    = data.get("subject", item.subject)

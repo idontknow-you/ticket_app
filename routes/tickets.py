@@ -3,8 +3,9 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from models import FormConfig, FormSubmission, User
 from extensions import db
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from decorators import permission_required
+from utils import to_ist
 
 tickets_bp = Blueprint("tickets", __name__, url_prefix="/tickets")
 
@@ -136,14 +137,16 @@ def update(submission_id):
         if new_assigned is not None:
             aid = int(new_assigned) if new_assigned else None
             if aid != sub.assigned_to:
-                agent = db.session.get(User, aid) if aid else None
+                agent = User.query.get(aid) if aid else None
                 changes.append(f"Assigned to: {agent.username if agent else 'nobody'}")
                 sub.assigned_to = aid
                 assigned_event = "ticket_assigned"
 
     if note_text or changes:
+        # Store the log timestamp in IST so it displays correctly in the UI
+        now_ist = to_ist(datetime.utcnow())
         log_entry = {
-            "at":     datetime.utcnow().isoformat(),
+            "at":     now_ist.isoformat(),
             "by_id":  current_user.id,
             "by":     current_user.username,
             "action": "; ".join(changes) if changes else "",
@@ -156,35 +159,39 @@ def update(submission_id):
     db.session.commit()
 
     # ── Fire mail events ──────────────────────────────────────────────────────
-    # extra_note comes from the pre-send popup (agent's personal message).
-    # send_mail=0 means the agent explicitly chose to skip the mail.
     send_mail  = request.form.get("send_mail", "1") != "0"
     extra_note = request.form.get("extra_note", "").strip()
 
-    if send_mail:
+    if send_mail and (status_event or assigned_event or (note_text and can_edit)):
         try:
-            from services.mail_service import enqueue_event
+            from services.mail_service import enqueue_event, enqueue_combined
             extra = {
                 "changed_by": current_user.username,
                 "note_text":  note_text,
                 "extra_note": extra_note,
+                "changes":    "; ".join(changes),
             }
-            queued = []
-            if status_event:
-                queued += enqueue_event(status_event, submission=sub, extra_vars=extra)
-            if assigned_event:
-                queued += enqueue_event(assigned_event, submission=sub, extra_vars=extra)
-            if note_text and can_edit and not status_event and not assigned_event:
-                queued += enqueue_event("ticket_reply_added", submission=sub, extra_vars=extra)
 
-            # Attach the agent's personal note to every queued item
+            if status_event and assigned_event:
+                queued = enqueue_combined(
+                    [status_event, assigned_event], submission=sub, extra_vars=extra
+                )
+            elif status_event:
+                queued = enqueue_event(status_event, submission=sub, extra_vars=extra)
+            elif assigned_event:
+                queued = enqueue_event(assigned_event, submission=sub, extra_vars=extra)
+            else:
+                queued = enqueue_event("ticket_reply_added", submission=sub, extra_vars=extra)
+
             if extra_note and queued:
                 for q in queued:
                     q.extra_note = extra_note
-                db.session.commit()
 
-        except Exception:
-            pass  # never break the ticket flow due to mail errors
+            db.session.commit()
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Ticket saved but mail could not be queued: {e}", "warning")
 
     flash("Ticket updated.", "success")
     return redirect(url_for("tickets.detail", submission_id=submission_id))

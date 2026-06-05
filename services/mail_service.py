@@ -1,12 +1,5 @@
 """
 ticketing_app/services/mail_service.py
-
-Handles:
- - resolving the effective template for an event (form override > global)
- - rendering {{variables}} in subject + body
- - resolving recipient list
- - enqueuing mails into MailQueue
- - processing the queue (send + retry + log)
 """
 import re
 from datetime import datetime
@@ -15,6 +8,7 @@ from models.mail import MailTemplate
 from models.mail_queue import MailQueue, MailLog, MAIL_EVENTS
 from models.settings import get_setting
 from utils.mail import send_email
+from utils import to_ist
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -22,7 +16,6 @@ from utils.mail import send_email
 # ─────────────────────────────────────────────────────────────────────────────
 
 def render_template_str(text: str, variables: dict) -> str:
-    """Replace {{key}} placeholders in text with values from variables dict."""
     if not text:
         return text or ""
 
@@ -34,16 +27,17 @@ def render_template_str(text: str, variables: dict) -> str:
 
 
 def build_variables(submission=None, event: str = "", extra: dict = None) -> dict:
-    """Build the variables dict available to templates."""
     vars_ = {
         "system_name": get_setting("smtp_from_name", "Support System"),
         "event": event,
     }
 
     if submission:
-        form = submission.form
+        form     = submission.form
         assignee = submission.assignee
 
+        # Convert submitted_at from UTC to IST for display in emails
+        submitted_ist = to_ist(submission.submitted_at)
         vars_.update({
             "ticket_id":       submission.ticket_id,
             "ticket_status":   submission.status,
@@ -51,10 +45,9 @@ def build_variables(submission=None, event: str = "", extra: dict = None) -> dic
             "form_name":       form.name if form else "",
             "form_slug":       form.slug if form else "",
             "assigned_agent":  assignee.username if assignee else "Unassigned",
-            "submitted_at":    submission.submitted_at.strftime("%d %b %Y %H:%M") if submission.submitted_at else "",
+            "submitted_at":    submitted_ist.strftime("%d %b %Y %H:%M IST") if submitted_ist else "",
         })
 
-        # Flatten all form field values as {{field_<id>}} and {{field_<label>}}
         for field in (submission.version_fields or []):
             fid   = field.get("id", "")
             label = field.get("label", "").lower().replace(" ", "_")
@@ -64,17 +57,16 @@ def build_variables(submission=None, event: str = "", extra: dict = None) -> dic
             vars_[f"field_{fid}"]   = val
             vars_[f"field_{label}"] = val
 
-        # Submitter email / name — look for common field labels
         for field in (submission.version_fields or []):
             label_lower = field.get("label", "").lower()
             fid = field.get("id", "")
             if any(k in label_lower for k in ("email",)):
                 vars_.setdefault("submitter_email", submission.data.get(fid, ""))
-            if any(k in label_lower for k in ("name", "full name", "your name")):
+            if any(label_lower == k for k in ("name", "full name", "your name", "full_name")):
                 vars_.setdefault("submitter_name", submission.data.get(fid, ""))
 
-        vars_.setdefault("submitter_email", "")
-        vars_.setdefault("submitter_name",  "")
+        vars_.setdefault("submitter_email", submission.submitter_email or "")
+        vars_.setdefault("submitter_name",  submission.submitter_name  or "")
 
     if extra:
         vars_.update(extra)
@@ -87,17 +79,13 @@ def build_variables(submission=None, event: str = "", extra: dict = None) -> dic
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_effective_template(form_config_id=None) -> MailTemplate | None:
-    """
-    Return the effective MailTemplate for a form:
-      1. form-specific template (if exists and not deleted)
-      2. global template
-    Returns None if neither exists.
-    """
     if form_config_id:
         t = MailTemplate.query.filter_by(
             form_config_id=form_config_id, is_deleted=False
         ).first()
-        if t:
+        # Only use the form-level template if the user has explicitly opted
+        # into overriding the global settings for this form.
+        if t and not t.use_global_template:
             return t
 
     return MailTemplate.query.filter_by(
@@ -110,9 +98,6 @@ def get_effective_template(form_config_id=None) -> MailTemplate | None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def resolve_recipients(event_cfg: dict, submission=None) -> list[dict]:
-    """
-    Return a list of {"email": ..., "name": ...} dicts for an event.
-    """
     from models import User
 
     recip_cfg = event_cfg.get("recipients", {})
@@ -133,8 +118,12 @@ def resolve_recipients(event_cfg: dict, submission=None) -> list[dict]:
             fid = field.get("id", "")
             if "email" in label_lower:
                 email = submission.data.get(fid, "")
-            if any(k in label_lower for k in ("name", "full name")):
+            if any(label_lower == k for k in ("name", "full name", "full_name")):
                 name = submission.data.get(fid, "")
+        if not email:
+            email = submission.submitter_email or ""
+        if not name:
+            name = submission.submitter_name or ""
         if email:
             _add(email, name)
 
@@ -170,32 +159,23 @@ def resolve_recipients(event_cfg: dict, submission=None) -> list[dict]:
 # Enqueue
 # ─────────────────────────────────────────────────────────────────────────────
 
-def enqueue_event(event: str, submission=None, extra_vars: dict = None,
-                  form_config_id: int = None) -> list[MailQueue]:
+def _build_queue_rows(event: str, cfg: dict, submission, fid: int,
+                      extra_vars: dict, seen_emails: set) -> list:
     """
-    Build and enqueue mail(s) for an event. Returns list of created MailQueue rows.
-    Does nothing if mail is disabled or event is disabled.
+    Build MailQueue objects for a single event without committing.
+    Skips recipients already in seen_emails (used for dedup within one event).
     """
-    if event not in MAIL_EVENTS:
-        return []
+    variables  = build_variables(submission=submission, event=event, extra=extra_vars)
+    subject    = render_template_str(cfg.get("subject", ""), variables)
+    body       = render_template_str(cfg.get("body", ""), variables)
+    recipients = resolve_recipients(cfg, submission=submission)
 
-    fid = form_config_id or (submission.form_config_id if submission else None)
-    tmpl = get_effective_template(fid)
-    if not tmpl or not tmpl.mail_enabled:
-        return []
-
-    event_cfg = tmpl.get_event_cfg(event)
-    if not event_cfg.get("enabled"):
-        return []
-
-    variables = build_variables(submission=submission, event=event, extra=extra_vars)
-    subject   = render_template_str(event_cfg.get("subject", ""), variables)
-    body      = render_template_str(event_cfg.get("body", ""), variables)
-    recipients = resolve_recipients(event_cfg, submission=submission)
-
-    queued = []
+    rows = []
     for r in recipients:
-        q = MailQueue(
+        if r["email"] in seen_emails:
+            continue
+        seen_emails.add(r["email"])
+        rows.append(MailQueue(
             to_email=r["email"],
             to_name=r.get("name", ""),
             subject=subject,
@@ -204,14 +184,72 @@ def enqueue_event(event: str, submission=None, extra_vars: dict = None,
             form_config_id=fid,
             submission_id=submission.id if submission else None,
             status="queued",
-        )
-        db.session.add(q)
-        queued.append(q)
+        ))
+    return rows
 
-    if queued:
-        db.session.commit()
 
-    return queued
+def enqueue_event(event: str, submission=None, extra_vars: dict = None,
+                  form_config_id: int = None) -> list[MailQueue]:
+    """
+    Enqueue mail(s) for a single event. Returns list of created MailQueue rows.
+    """
+    if event not in MAIL_EVENTS:
+        return []
+
+    fid  = form_config_id or (submission.form_config_id if submission else None)
+    tmpl = get_effective_template(fid)
+    print(f"[enqueue] tmpl={tmpl}")
+
+    if not tmpl or not tmpl.mail_enabled:
+        return []
+
+    event_cfg = tmpl.get_event_cfg(event)
+    if not event_cfg.get("enabled"):
+        return []
+
+    seen  = set()
+    rows  = _build_queue_rows(event, event_cfg, submission, fid, extra_vars or {}, seen)
+    if not rows:
+        return []
+
+    for r in rows:
+        db.session.add(r)
+    db.session.flush()
+    return rows
+
+
+def enqueue_combined(events: list, submission=None, extra_vars: dict = None,
+                     form_config_id: int = None) -> list:
+    """
+    Enqueue mails for multiple events firing together (e.g. status + assign).
+    Each event gets its own email(s) with the correct subject/body/recipients.
+    Uses flush() so the caller controls the single commit.
+    """
+    print(f"[enqueue_combined] events={events}")
+    fid  = form_config_id or (submission.form_config_id if submission else None)
+    tmpl = get_effective_template(fid)
+    print(f"[enqueue_combined] tmpl={tmpl} mail_enabled={tmpl.mail_enabled if tmpl else None}")
+    if not tmpl or not tmpl.mail_enabled:
+        return []
+
+    all_rows = []
+
+    for event in events:
+        if event not in MAIL_EVENTS:
+            continue
+        cfg = tmpl.get_event_cfg(event)
+        if not cfg.get("enabled"):
+            continue
+        seen_emails = set()   # fresh per event — don't dedup across events
+        rows = _build_queue_rows(event, cfg, submission, fid, extra_vars or {}, seen_emails)
+        for r in rows:
+            db.session.add(r)
+        all_rows.extend(rows)
+
+    if all_rows:
+        db.session.flush()
+
+    return all_rows
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -219,11 +257,6 @@ def enqueue_event(event: str, submission=None, extra_vars: dict = None,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def process_queue(limit: int = 50) -> dict:
-    """
-    Process pending queued items. Call this from a background job or
-    manually via the admin UI.
-    Returns {"sent": N, "failed": N, "skipped": N}
-    """
     pending = (
         MailQueue.query
         .filter(MailQueue.status == "queued")
@@ -259,8 +292,7 @@ def process_queue(limit: int = 50) -> dict:
 
 
 def send_queue_item_now(queue_id: int) -> tuple[bool, str]:
-    """Manually send a specific queued/failed item. Returns (success, error)."""
-    item = db.session.get(MailQueue, queue_id)
+    item = MailQueue.query.get(queue_id)
     if not item:
         return False, "Queue item not found"
 
@@ -275,7 +307,7 @@ def send_queue_item_now(queue_id: int) -> tuple[bool, str]:
         db.session.commit()
         return True, None
     except Exception as e:
-        item.retry_count = item.max_retries  # force to failed on manual send
+        item.retry_count = item.max_retries
         item.status = "failed"
         item.last_error = str(e)
         _log(item, "failed", error=str(e))
@@ -284,11 +316,6 @@ def send_queue_item_now(queue_id: int) -> tuple[bool, str]:
 
 
 def _send_queue_item(item: MailQueue):
-    """
-    Actually send a MailQueue item via SMTP.
-    Also sends to any extra_recipients attached.
-    Raises on failure.
-    """
     all_recipients = [{"email": item.to_email, "name": item.to_name or ""}]
     for er in (item.extra_recipients or []):
         if er.get("email"):

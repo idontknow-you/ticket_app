@@ -41,6 +41,11 @@ class MailTemplate(db.Model):
     reply_to       = db.Column(db.String(200), nullable=True)
     from_name      = db.Column(db.String(120), nullable=True)
 
+    # When True (default for new form-level templates), the global template is
+    # used instead of this record's own subjects/bodies/recipients.
+    # Set to False when the user explicitly configures a form-level override.
+    use_global_template = db.Column(db.Boolean, default=True, nullable=False)
+
     form           = db.relationship("FormConfig", foreign_keys=[form_config_id])
 
     def soft_delete(self):

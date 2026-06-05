@@ -96,7 +96,7 @@
         {% for log in logs %}
         <tr class="log-row">
           <td class="px-4 py-3 font-mono text-xs text-muted whitespace-nowrap">
-            {{ log.created_at.strftime('%d %b %H:%M') }}
+            {{ log.created_at | ist_fmt('%d %b %H:%M') }}
           </td>
           <td class="px-4 py-3 text-xs">
             <div class="font-medium">{{ log.to_name or '—' }}</div>
