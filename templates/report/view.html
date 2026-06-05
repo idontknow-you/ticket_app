@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}{{ report.title }} — Reports{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  .badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; border:1px solid; }
+  .status-open        { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+  .status-in_progress { background:#fffbeb; color:#d97706; border-color:#fde68a; }
+  .status-closed      { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-8 py-8">
+
+  <!-- Back + header -->
+  <div class="flex items-start justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('reports.index') }}" class="text-muted hover:text-ink transition mt-0.5">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <div>
+        <h1 class="font-serif text-2xl text-ink">{{ report.title }}</h1>
+        <p class="text-muted text-sm mt-0.5">
+          {{ report.form.name if report.form else '—' }}
+          · Created {{ report.created_at.strftime('%d %b %Y') }}
+          {% if report.creator %} by {{ report.creator.name or report.creator.username }}{% endif %}
+        </p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <!-- Refresh -->
+      <button id="refresh-btn"
+              class="inline-flex items-center gap-1.5 bg-white border border-line text-ink text-sm font-medium px-3 py-2 rounded-xl hover:bg-faint transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Refresh
+      </button>
+
+      {% if can_delete %}
+      <form method="POST" action="{{ url_for('reports.delete', report_id=report.id) }}"
+            onsubmit="return confirm('Delete this report?')">
+        <button type="submit"
+                class="inline-flex items-center gap-1.5 bg-white border border-red-200 text-red-500 text-sm font-medium px-3 py-2 rounded-xl hover:bg-red-50 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+          Delete
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Config badges -->
+  {% set cfg = report.config or {} %}
+  <div class="flex items-center gap-2 mb-6 flex-wrap">
+    <span class="text-xs bg-faint border border-line text-ink rounded-lg px-2.5 py-1 capitalize font-medium">
+      {{ cfg.get('chart_type', 'bar') }} chart
+    </span>
+    <span class="text-xs bg-faint border border-line text-muted rounded-lg px-2.5 py-1">
+      Grouped by <strong class="text-ink">{{ cfg.get('group_by', 'status').replace('__','').replace('_',' ').title() if cfg.get('group_by','').startswith('__') else cfg.get('group_by','status') }}</strong>
+    </span>
+    {% if cfg.get('filter_status') %}
+    <span class="text-xs bg-blue-50 text-blue-600 border border-blue-100 rounded-lg px-2.5 py-1">
+      Status: {{ cfg.filter_status }}
+    </span>
+    {% endif %}
+    {% if cfg.get('filter_priority') %}
+    <span class="text-xs bg-amber-50 text-amber-600 border border-amber-100 rounded-lg px-2.5 py-1">
+      Priority: {{ cfg.filter_priority }}
+    </span>
+    {% endif %}
+    {% if cfg.get('date_range') and cfg.date_range != 0 %}
+    <span class="text-xs bg-purple-50 text-purple-600 border border-purple-100 rounded-lg px-2.5 py-1">
+      Last {{ cfg.date_range }} days
+    </span>
+    {% endif %}
+    <span class="text-xs text-muted ml-auto" id="total-label">
+      — submissions
+    </span>
+  </div>
+
+  <!-- Chart card -->
+  <div class="bg-white border border-line rounded-2xl p-6 mb-5" id="chart-card">
+    {% if chart_type == 'table' %}
+    <!-- Table view -->
+    <div id="table-container">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-line">
+            <th class="text-left font-medium text-muted pb-3 pr-4">Value</th>
+            <th class="text-right font-medium text-muted pb-3">Count</th>
+            <th class="text-right font-medium text-muted pb-3 pl-4">Share</th>
+          </tr>
+        </thead>
+        <tbody id="table-body" class="divide-y divide-line">
+          <!-- filled by JS -->
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="relative" style="height: 360px;">
+      <canvas id="main-chart"></canvas>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+const CHART_TYPE   = {{ chart_type | tojson }};
+const CHART_DATA   = {{ chart_data_json | safe }};
+const REFRESH_URL  = "{{ url_for('reports.chart_data', report_id=report.id) }}";
+
+let chartInstance = null;
+
+function renderChart(data) {
+  document.getElementById('total-label').textContent =
+    data.total + ' submission' + (data.total !== 1 ? 's' : '');
+
+  if (CHART_TYPE === 'table') {
+    renderTable(data);
+    return;
+  }
+
+  const ctx = document.getElementById('main-chart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+
+  const isBar  = CHART_TYPE === 'bar';
+  const isLine = CHART_TYPE === 'line';
+  const isPie  = CHART_TYPE === 'pie';
+
+  const datasets = [{
+    data:            data.values,
+    backgroundColor: isPie ? data.colors : data.colors.map(c => c + '22'),
+    borderColor:     data.colors,
+    borderWidth:     isPie ? 0 : 2,
+    borderRadius:    isBar ? 6 : 0,
+    tension:         0.35,
+    fill:            isLine,
+    pointRadius:     isLine ? 4 : 0,
+    pointHoverRadius: isLine ? 6 : 0,
+  }];
+
+  chartInstance = new Chart(ctx, {
+    type: CHART_TYPE,
+    data: { labels: data.labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: isPie,
+          position: 'right',
+          labels: { font: { size: 12 }, padding: 16 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const pct = data.total ? ((ctx.parsed.y ?? ctx.parsed) / data.total * 100).toFixed(1) : 0;
+              const val = ctx.parsed.y ?? ctx.parsed;
+              return ` ${val} (${pct}%)`;
+            }
+          }
+        }
+      },
+      scales: isPie ? {} : {
+        x: { grid: { display: false }, ticks: { font: { size: 12 } } },
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0, font: { size: 12 } },
+          grid: { color: '#f0f0ec' },
+        }
+      },
+    }
+  });
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('table-body');
+  if (!tbody) return;
+  const total = data.total || 1;
+  tbody.innerHTML = data.labels.map((label, i) => {
+    const count = data.values[i];
+    const pct   = (count / total * 100).toFixed(1);
+    return `
+      <tr>
+        <td class="py-3 pr-4 text-ink">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${data.colors[i]}"></span>
+            ${label}
+          </div>
+        </td>
+        <td class="py-3 text-right font-mono font-medium text-ink">${count}</td>
+        <td class="py-3 text-right text-muted pl-4">
+          <div class="flex items-center justify-end gap-2">
+            <div class="w-20 bg-faint rounded-full h-1.5 overflow-hidden">
+              <div class="h-full rounded-full" style="width:${pct}%;background:${data.colors[i]}"></div>
+            </div>
+            ${pct}%
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// Initial render
+renderChart(CHART_DATA);
+
+// Refresh
+document.getElementById('refresh-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing…';
+  try {
+    const resp = await fetch(REFRESH_URL);
+    const data = await resp.json();
+    renderChart(data);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>
+      Refresh`;
+  }
+});
+</script>
+{% endblock %}

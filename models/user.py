@@ -33,9 +33,10 @@ class User(UserMixin, db.Model):
 
     def soft_delete(self):
         self.is_deleted = True
+        self.is_active  = False
         self.deleted_at = datetime.utcnow()
 
-    def has_permission(self, module, action="view"):
+    def has_permission(self, module, action="can_view"):
         if self.is_superadmin:
             return True
         return self.permissions.get(module, {}).get(action, False)

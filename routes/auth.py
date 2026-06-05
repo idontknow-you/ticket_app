@@ -1,7 +1,14 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
+from urllib.parse import urlparse, urljoin
 from extensions import db
 from models import User
+
+
+def _is_safe_url(target):
+    ref_url  = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -23,6 +30,8 @@ def login():
         if user and user.check_password(password):
             login_user(user)
             next_page = request.args.get("next")
+            if next_page and not _is_safe_url(next_page):
+                next_page = None
             return redirect(next_page or url_for("tickets.dashboard"))
 
         flash("Invalid username or password.", "error")

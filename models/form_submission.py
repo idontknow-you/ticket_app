@@ -10,7 +10,7 @@ class FormSubmission(db.Model):
     # snapshot: which exact version was live when this ticket was submitted
     form_config_version_id = db.Column(db.Integer, db.ForeignKey("form_config_versions.id"), nullable=True)
 
-    ticket_id              = db.Column(db.String(40), nullable=False, index=True)
+    ticket_id              = db.Column(db.String(40), nullable=False, index=True, unique=True)
     submitted_at           = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at             = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_deleted             = db.Column(db.Boolean, default=False, nullable=False)

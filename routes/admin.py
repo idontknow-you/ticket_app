@@ -31,7 +31,7 @@ MODULE_ACTIONS ={
     "user": ["can_view", "can_create","can_edit", "can_delete"],
     "wiki": ["can_view", "can_create", "can_edit", "can_delete"],
     "mails": ["can_view", "can_edit"],
-    "reports": ["can_view"],
+    "reports": ["can_view", "can_create", "can_delete"],
     "settings": ["can_view", "can_edit"]
 }
 DEFAULT_PERMISSIONS = {
@@ -101,7 +101,7 @@ def create_user():
 @login_required
 @superadmin_required
 def toggle_user(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         flash("You cannot deactivate your own account.", "error")
         return redirect(url_for("admin.panel", tab="users"))
@@ -118,7 +118,7 @@ def delete_user(user_id):
     if not current_user.is_superadmin and not current_user.has_permission("user", "can_delete"):
         abort(403)
 
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         flash("You cannot delete your own account.", "error")
         return redirect(url_for("admin.panel", tab="users"))
@@ -135,7 +135,7 @@ def send_reset(user_id):
     if not current_user.is_superadmin and not current_user.has_permission("user", "can_edit"):
         abort(403)
 
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if not user.email:
         flash(f"User '{user.username}' has no email address.", "error")
         return redirect(url_for("admin.panel", tab="users"))
@@ -158,7 +158,7 @@ def send_reset(user_id):
 @login_required
 @superadmin_required
 def toggle_superadmin(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         flash("You cannot change your own superadmin status.", "error")
         return redirect(url_for("admin.panel", tab="users"))
@@ -175,7 +175,7 @@ def toggle_superadmin(user_id):
 @login_required
 @superadmin_required
 def save_permission(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.is_superadmin:
         return jsonify({"ok": False, "error": "Superadmins always have full access."}), 400
 
@@ -216,6 +216,7 @@ def save_smtp():
     for key, _, _, _ in SMTP_KEYS:
         value = request.form.get(key, "").strip()
         set_setting(key, value)
+    db.session.commit()
     flash("SMTP settings saved.", "success")
     return redirect(url_for("admin.panel", tab="settings"))
 

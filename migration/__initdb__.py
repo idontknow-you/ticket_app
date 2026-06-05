@@ -36,11 +36,11 @@ def _backfill_submitter_fields(db, FormSubmission, FormConfigVersion, FormConfig
     for sub in orphans:
         fields = []
         if sub.form_config_version_id:
-            ver = FormConfigVersion.query.get(sub.form_config_version_id)
+            ver = db.session.get(FormConfigVersion, sub.form_config_version_id)
             if ver:
                 fields = ver.sorted_fields
         if not fields:
-            form = FormConfig.query.get(sub.form_config_id)
+            form = db.session.get(FormConfig, sub.form_config_id)
             if form:
                 fields = form.sorted_fields
 
@@ -68,6 +68,7 @@ def init_db(app=None):
     with app.app_context():
         from extensions import db
         from models import User, FormConfigVersion, FormConfig, FormSubmission
+        from models.report import Report
         from models.mail import MailTemplate
         from models.mail_queue import MailQueue, MailLog
 
@@ -87,6 +88,7 @@ def init_db(app=None):
         # ── Superadmin ────────────────────────────────────────────────────────
         if not User.query.filter_by(username="superadmin").first():
             admin = User(
+                name="Super Admin",
                 username="superadmin",
                 is_superadmin=True,
                 is_active=True,

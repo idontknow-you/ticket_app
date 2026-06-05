@@ -260,7 +260,7 @@ def process_queue(limit: int = 50) -> dict:
 
 def send_queue_item_now(queue_id: int) -> tuple[bool, str]:
     """Manually send a specific queued/failed item. Returns (success, error)."""
-    item = MailQueue.query.get(queue_id)
+    item = db.session.get(MailQueue, queue_id)
     if not item:
         return False, "Queue item not found"
 

@@ -20,11 +20,10 @@ def get_setting(key, default=None):
 
 
 def set_setting(key, value):
-    """Update an existing setting or create it if missing."""
+    """Update an existing setting or create it if missing. Caller must commit."""
     s = Setting.query.filter_by(key=key).first()
     if s:
         s.value = value
     else:
         s = Setting(key=key, value=value)
         db.session.add(s)
-    db.session.commit()

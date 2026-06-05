@@ -388,7 +388,7 @@ def logs():
 @login_required
 @permission_required("mails", "can_view")
 def log_body(log_id):
-    log = MailLog.query.get_or_404(log_id)
+    log = db.get_or_404(MailLog, log_id)
     return jsonify({"body": log.html_body or "<em>No body stored.</em>"})
 
 
@@ -424,7 +424,7 @@ def queue_send(item_id):
 @login_required
 @permission_required("mails", "can_view")
 def queue_edit(item_id):
-    item = MailQueue.query.get_or_404(item_id)
+    item = db.get_or_404(MailQueue, item_id)
     return jsonify({
         "id":               item.id,
         "to_email":         item.to_email,
@@ -444,7 +444,7 @@ def queue_edit(item_id):
 @login_required
 @permission_required("mails", "can_edit")
 def queue_save(item_id):
-    item = MailQueue.query.get_or_404(item_id)
+    item = db.get_or_404(MailQueue, item_id)
     data = request.get_json()
 
     item.subject    = data.get("subject", item.subject)

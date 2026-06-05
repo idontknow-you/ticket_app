@@ -241,8 +241,11 @@
         {% endif %}
 
         <input type="hidden" name="note" value="">
+        <!-- injected by the pre-send popup before submit -->
+        <input type="hidden" name="extra_note" id="extra-note-input" value="">
+        <input type="hidden" name="send_mail"  id="send-mail-input"  value="1">
 
-        <button type="submit"
+        <button type="button" id="save-changes-btn"
           class="w-full bg-ink text-white text-sm font-medium py-2.5 rounded-xl hover:bg-gray-800 transition">
           Save changes
         </button>
@@ -303,6 +306,145 @@ function closeLightbox() {
   document.body.style.overflow = '';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
+
+<!-- ── Pre-send mail modal ─────────────────────────────────────────────── -->
+<div id="mail-modal"
+     style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);
+            align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;margin:16px;
+              box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden;">
+
+    <!-- Header -->
+    <div style="padding:20px 24px 0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <p style="font-size:15px;font-weight:600;color:#111;margin:0;">Send notification email?</p>
+        <button onclick="closeMailModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;line-height:1;">×</button>
+      </div>
+      <p style="font-size:12px;color:#888;margin:4px 0 16px;">The following changes will be included automatically.</p>
+    </div>
+
+    <!-- Locked changes summary -->
+    <div id="modal-changes-block"
+         style="margin:0 24px;padding:10px 14px;background:#f9f9f7;border:1px solid #e2e2de;
+                border-radius:10px;font-size:12px;color:#555;line-height:1.9;"></div>
+
+    <!-- Optional personal message -->
+    <div style="padding:16px 24px 0;">
+      <label style="display:block;font-size:11px;font-weight:600;color:#888;
+                    text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
+        Add a personal message <span style="font-weight:400;text-transform:none;">(optional)</span>
+      </label>
+      <textarea id="modal-extra-note" rows="3"
+                placeholder="e.g. We're looking into this and will update you shortly…"
+                style="width:100%;border:1px solid #e2e2de;border-radius:8px;padding:8px 12px;
+                       font-size:13px;font-family:inherit;background:#fafaf8;outline:none;
+                       color:#111;resize:vertical;box-sizing:border-box;transition:border-color .15s;"
+                onfocus="this.style.borderColor='#111';this.style.background='#fff'"
+                onblur="this.style.borderColor='#e2e2de';this.style.background='#fafaf8'"></textarea>
+      <p style="font-size:11px;color:#aaa;margin-top:5px;">
+        This will appear below the main notification body in the email.
+      </p>
+    </div>
+
+    <!-- Actions -->
+    <div style="padding:20px 24px;display:flex;gap:10px;justify-content:flex-end;">
+      <button onclick="submitWithoutMail()"
+              style="font-size:13px;font-weight:500;color:#666;background:#f5f5f3;
+                     border:1px solid #e2e2de;border-radius:10px;padding:8px 16px;
+                     cursor:pointer;transition:background .15s;"
+              onmouseover="this.style.background='#ebebea'"
+              onmouseout="this.style.background='#f5f5f3'">
+        Save without email
+      </button>
+      <button onclick="submitWithMail()"
+              style="font-size:13px;font-weight:500;color:#fff;background:#111;
+                     border:none;border-radius:10px;padding:8px 18px;
+                     cursor:pointer;transition:background .15s;"
+              onmouseover="this.style.background='#333'"
+              onmouseout="this.style.background='#111'">
+        Save &amp; send email
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Pre-send popup ────────────────────────────────────────────────────────────
+const saveBtn       = document.getElementById('save-changes-btn');
+const updateForm    = saveBtn ? saveBtn.closest('form') : null;
+const mailModal     = document.getElementById('mail-modal');
+const extraInput    = document.getElementById('extra-note-input');
+const sendMailInput = document.getElementById('send-mail-input');
+const changesBlock  = document.getElementById('modal-changes-block');
+const extraNote     = document.getElementById('modal-extra-note');
+
+// Capture original values on page load so we can diff what actually changed
+const origStatus   = updateForm ? (updateForm.querySelector('[name=status]')?.value   || '') : '';
+const origPriority = updateForm ? (updateForm.querySelector('[name=priority]')?.value || '') : '';
+const origAssigned = updateForm ? (updateForm.querySelector('[name=assigned_to]')?.value || '') : '';
+
+function detectChanges() {
+  if (!updateForm) return [];
+  const lines = [];
+  const newStatus   = updateForm.querySelector('[name=status]')?.value   || '';
+  const newPriority = updateForm.querySelector('[name=priority]')?.value || '';
+  const newAssigned = updateForm.querySelector('[name=assigned_to]')?.value || '';
+
+  if (newStatus !== origStatus)
+    lines.push(`Status → <strong>${newStatus.replace('_', ' ')}</strong>`);
+  if (newPriority !== origPriority)
+    lines.push(`Priority → <strong>${newPriority || '— not set —'}</strong>`);
+  if (newAssigned !== origAssigned) {
+    const sel   = updateForm.querySelector('[name=assigned_to]');
+    const label = sel ? sel.options[sel.selectedIndex]?.text : (newAssigned || 'Unassigned');
+    lines.push(`Assigned to → <strong>${label}</strong>`);
+  }
+  return lines;
+}
+
+function openMailModal() {
+  const changes = detectChanges();
+  if (changes.length === 0) {
+    // No mail-triggering change — submit directly without showing popup
+    sendMailInput.value = '0';
+    updateForm.submit();
+    return;
+  }
+  changesBlock.innerHTML = changes.join('<br>');
+  extraNote.value = '';
+  mailModal.style.display = 'flex';
+  setTimeout(() => extraNote.focus(), 80);
+}
+
+function closeMailModal() {
+  mailModal.style.display = 'none';
+}
+
+function submitWithMail() {
+  extraInput.value    = extraNote.value.trim();
+  sendMailInput.value = '1';
+  closeMailModal();
+  updateForm.submit();
+}
+
+function submitWithoutMail() {
+  extraInput.value    = '';
+  sendMailInput.value = '0';
+  closeMailModal();
+  updateForm.submit();
+}
+
+if (saveBtn) saveBtn.addEventListener('click', openMailModal);
+
+// Close on backdrop click or Escape (don't let Escape also close the lightbox)
+mailModal.addEventListener('click', e => { if (e.target === mailModal) closeMailModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && mailModal.style.display === 'flex') {
+    e.stopImmediatePropagation();
+    closeMailModal();
+  }
+});
 </script>
 
 {% endblock %}

@@ -6,6 +6,7 @@ from .wiki_page import WikiPage, WikiAttachment, WikiHistory
 from .mail import MailTemplate
 from .mail_queue import MailQueue, MailLog, MAIL_EVENTS
 from .mail_custom import CustomMailTemplate
+from .report import Report
 
 __all__ = [
     "User",
@@ -20,4 +21,5 @@ __all__ = [
     "MailLog",
     "MAIL_EVENTS",
     "CustomMailTemplate",
+    "Report",
 ]

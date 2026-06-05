@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}New Report — Support System{% endblock %}
+
+{% block head %}
+<style>
+  .inp {
+    width: 100%;
+    border: 1px solid #e2e2de;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fafaf8;
+    outline: none;
+    color: #111;
+    transition: border-color .15s;
+  }
+  .inp:focus { border-color: #111; background: #fff; }
+  select.inp { cursor: pointer; }
+
+  .chart-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 8px;
+    border: 1px solid #e2e2de;
+    border-radius: 10px;
+    background: #fafaf8;
+    cursor: pointer;
+    transition: all .15s;
+    font-size: 11px;
+    font-weight: 500;
+    color: #777;
+  }
+  .chart-btn:hover { border-color: #bbb; color: #111; background: #fff; }
+  .chart-btn.selected { border-color: #111; background: #111; color: #fff; }
+  .chart-btn svg { width: 20px; height: 20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-8 py-8">
+
+  <!-- Back + header -->
+  <div class="flex items-center gap-3 mb-8">
+    <a href="{{ url_for('reports.index') }}" class="text-muted hover:text-ink transition mt-0.5">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    <h1 class="font-serif text-2xl text-ink">New Report</h1>
+  </div>
+
+  <form method="POST" action="{{ url_for('reports.create') }}">
+
+    <div class="bg-white border border-line rounded-2xl divide-y divide-line">
+
+      <!-- Title -->
+      <div class="px-6 py-5">
+        <label class="block text-xs font-medium text-muted uppercase tracking-wide mb-2">Title</label>
+        <input type="text" name="title" class="inp" placeholder="e.g. Tickets by status — IT Support" required autofocus>
+      </div>
+
+      <!-- Form -->
+      <div class="px-6 py-5">
+        <label class="block text-xs font-medium text-muted uppercase tracking-wide mb-2">Form</label>
+        <select name="form_config_id" id="form-select" class="inp" required>
+          <option value="">Select a form…</option>
+          {% for f in forms %}
+          <option value="{{ f.id }}" {% if selected_form and selected_form.id == f.id %}selected{% endif %}>
+            {{ f.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Group by -->
+      <div class="px-6 py-5">
+        <label class="block text-xs font-medium text-muted uppercase tracking-wide mb-2">Group by</label>
+        <select name="group_by" id="group-by-select" class="inp">
+          <option value="__status__">Status</option>
+          <option value="__priority__">Priority</option>
+          {% for f in groupable_fields %}
+          <option value="{{ f.id }}">{{ f.get('label', f.id) }}</option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-muted mt-1.5">Select/radio/checkbox fields from the form appear here once you pick a form above.</p>
+      </div>
+
+      <!-- Chart type -->
+      <div class="px-6 py-5">
+        <label class="block text-xs font-medium text-muted uppercase tracking-wide mb-3">Chart type</label>
+        <div class="flex gap-2" id="chart-type-btns">
+          <input type="hidden" name="chart_type" id="chart-type-val" value="bar">
+
+          <button type="button" class="chart-btn selected" data-type="bar">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            Bar
+          </button>
+
+          <button type="button" class="chart-btn" data-type="pie">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+            </svg>
+            Pie
+          </button>
+
+          <button type="button" class="chart-btn" data-type="line">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+            </svg>
+            Line
+          </button>
+
+          <button type="button" class="chart-btn" data-type="table">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 10h18M3 14h18M10 4v16M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/>
+            </svg>
+            Table
+          </button>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="px-6 py-5">
+        <label class="block text-xs font-medium text-muted uppercase tracking-wide mb-3">Filters <span class="normal-case font-normal">(optional)</span></label>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs text-muted mb-1.5">Status</label>
+            <select name="filter_status" class="inp">
+              <option value="">All</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-muted mb-1.5">Priority</label>
+            <select name="filter_priority" class="inp">
+              <option value="">All</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-muted mb-1.5">Date range</label>
+            <select name="date_range" class="inp">
+              <option value="0">All time</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Actions -->
+    <div class="flex items-center justify-end gap-3 mt-5">
+      <a href="{{ url_for('reports.index') }}"
+         class="text-sm text-muted hover:text-ink transition px-4 py-2 rounded-xl hover:bg-faint">
+        Cancel
+      </a>
+      <button type="submit"
+              class="bg-ink text-white text-sm font-medium px-5 py-2 rounded-xl hover:bg-gray-800 transition">
+        Create Report
+      </button>
+    </div>
+
+  </form>
+</div>
+
+<script>
+// ── Chart type picker ────────────────────────────────────────────────────────
+document.querySelectorAll('.chart-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.chart-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    document.getElementById('chart-type-val').value = btn.dataset.type;
+  });
+});
+
+// ── Dynamic group-by fields when form changes ────────────────────────────────
+const formSelect   = document.getElementById('form-select');
+const groupSelect  = document.getElementById('group-by-select');
+const BASE_OPTIONS = `
+  <option value="__status__">Status</option>
+  <option value="__priority__">Priority</option>
+`;
+
+formSelect.addEventListener('change', async () => {
+  const formId = formSelect.value;
+  if (!formId) {
+    groupSelect.innerHTML = BASE_OPTIONS;
+    return;
+  }
+  const resp   = await fetch(`/reports/fields?form_id=${formId}`);
+  const fields = await resp.json();
+  let html = BASE_OPTIONS;
+  fields.forEach(f => {
+    html += `<option value="${f.id}">${f.label}</option>`;
+  });
+  groupSelect.innerHTML = html;
+});
+</script>
+{% endblock %}
