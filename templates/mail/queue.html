@@ -11,6 +11,34 @@
   .status-failed   { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
   .badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; border:1px solid; }
   .q-row:hover { background: #fafaf8; }
+
+  /* Error inline expand */
+  .error-box {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #dc2626;
+    word-break: break-all;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    max-height: 2.8em;
+    overflow: hidden;
+    transition: max-height .2s ease;
+  }
+  .error-box.expanded { max-height: 200px; }
+  .error-toggle {
+    font-size: 10px;
+    color: #9ca3af;
+    cursor: pointer;
+    user-select: none;
+    margin-top: 2px;
+    display: inline-block;
+  }
+  .error-toggle:hover { color: #dc2626; }
+
+  /* Actions column — always reserve enough width, never wrap */
+  .actions-col { width: 1%; white-space: nowrap; }
+  .actions-col .btn-row { display: flex; gap: 4px; align-items: center; }
+
   .edit-modal  { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.5);
                  align-items:center; justify-content:center; }
   .edit-modal.open { display:flex; }
@@ -59,56 +87,59 @@
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b border-line text-xs text-muted uppercase tracking-wide">
-          <th class="px-4 py-3 text-left font-semibold">Created</th>
+          <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">Created</th>
           <th class="px-4 py-3 text-left font-semibold">To</th>
           <th class="px-4 py-3 text-left font-semibold">Subject</th>
-          <th class="px-4 py-3 text-left font-semibold">Event</th>
-          <th class="px-4 py-3 text-left font-semibold">Retries</th>
+          <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">Event</th>
+          <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">Retries</th>
           <th class="px-4 py-3 text-left font-semibold">Status</th>
-          <th class="px-4 py-3 text-left font-semibold">Actions</th>
+          <th class="px-4 py-3 text-left font-semibold actions-col">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-line">
         {% for item in items %}
         <tr class="q-row">
           <td class="px-4 py-3 font-mono text-xs text-muted whitespace-nowrap">
-            {{ item.created_at | ist_fmt('%d %b %H:%M') }}
+            {{ item.created_at | ist_fmt('%d %b %H:%M IST') }}
           </td>
-          <td class="px-4 py-3 text-xs">
-            <div>{{ item.to_name or '—' }}</div>
-            <div class="font-mono text-muted">{{ item.to_email }}</div>
+          <td class="px-4 py-3 text-xs" style="min-width:140px;max-width:200px">
+            <div class="font-medium truncate">{{ item.to_name or '—' }}</div>
+            <div class="font-mono text-muted truncate">{{ item.to_email }}</div>
             {% if item.extra_recipients %}
             <div class="text-muted text-xs mt-0.5">+{{ item.extra_recipients|length }} extra</div>
             {% endif %}
           </td>
-          <td class="px-4 py-3 text-xs max-w-xs truncate">{{ item.subject }}</td>
-          <td class="px-4 py-3">
+          <td class="px-4 py-3 text-xs" style="max-width:200px">
+            <div class="truncate" title="{{ item.subject }}">{{ item.subject }}</div>
+          </td>
+          <td class="px-4 py-3 whitespace-nowrap">
             <span class="text-xs font-mono bg-faint border border-line px-2 py-0.5 rounded">
               {{ item.event.replace('_',' ') }}
             </span>
           </td>
-          <td class="px-4 py-3 text-xs text-center text-muted">
+          <td class="px-4 py-3 text-xs text-center text-muted whitespace-nowrap">
             {{ item.retry_count }}/{{ item.max_retries }}
           </td>
-          <td class="px-4 py-3">
+          <td class="px-4 py-3" style="min-width:140px">
             <span class="badge status-{{ item.status }}">{{ item.status }}</span>
             {% if item.last_error %}
-            <div class="text-xs text-red-500 mt-1 max-w-xs truncate" title="{{ item.last_error }}">
-              {{ item.last_error[:60] }}{% if item.last_error|length > 60 %}…{% endif %}
+            <div class="mt-1">
+              <div class="error-box" id="err-{{ item.id }}">{{ item.last_error }}</div>
+              <span class="error-toggle" onclick="toggleErr({{ item.id }}, this)">▼ show more</span>
             </div>
             {% endif %}
           </td>
-          <td class="px-4 py-3">
-            <div class="flex gap-1">
+          <td class="px-4 py-3 actions-col">
+            <div class="btn-row">
               <button onclick="openEdit({{ item.id }})"
-                      class="text-xs px-3 py-1 rounded-lg border border-line text-muted hover:text-ink transition">
+                      class="text-xs px-3 py-1 rounded-lg border border-line text-muted hover:text-ink transition whitespace-nowrap">
                 Edit
               </button>
               {% if item.status in ['queued', 'failed'] %}
               <form method="POST" action="{{ url_for('mail.queue_send', item_id=item.id) }}"
                     onsubmit="return confirm('Send this email now?')">
                 <button type="submit"
-                        class="text-xs px-3 py-1 rounded-lg border border-ink text-ink hover:bg-ink hover:text-white transition">
+                        class="text-xs px-3 py-1 rounded-lg border border-ink text-ink hover:bg-ink hover:text-white transition whitespace-nowrap">
                   Send
                 </button>
               </form>
@@ -205,7 +236,6 @@
 let editQuill = null;
 let currentItemId = null;
 
-// Init Quill in the modal
 editQuill = new Quill('#ei_editor', {
   theme: 'snow',
   modules: {
@@ -232,7 +262,6 @@ function openEdit(itemId) {
       document.getElementById('ei_form').textContent   = d.form_name || '—';
       document.getElementById('ei_status').textContent = d.status;
 
-      // Extra recipients
       const list = document.getElementById('extraRecipList');
       list.innerHTML = '';
       (d.extra_recipients || []).forEach(r => addRecipRow(r.email, r.name));
@@ -264,8 +293,8 @@ function addRecipRow(email='', name='') {
 }
 
 function saveEdit(sendNow) {
-  const rows   = document.querySelectorAll('#extraRecipList > div');
-  const extra  = [];
+  const rows  = document.querySelectorAll('#extraRecipList > div');
+  const extra = [];
   rows.forEach(r => {
     const e = r.querySelector('[data-role=recip-email]').value.trim();
     const n = r.querySelector('[data-role=recip-name]').value.trim();
@@ -273,10 +302,10 @@ function saveEdit(sendNow) {
   });
 
   const payload = {
-    subject:           document.getElementById('ei_subject').value,
-    html_body:         editQuill.root.innerHTML,
-    extra_note:        document.getElementById('ei_note').value,
-    extra_recipients:  extra,
+    subject:          document.getElementById('ei_subject').value,
+    html_body:        editQuill.root.innerHTML,
+    extra_note:       document.getElementById('ei_note').value,
+    extra_recipients: extra,
   };
 
   fetch(`/mail/queue/${currentItemId}/save`, {
@@ -297,6 +326,12 @@ function saveEdit(sendNow) {
       location.reload();
     }
   });
+}
+
+function toggleErr(id, btn) {
+  const box = document.getElementById('err-' + id);
+  const expanded = box.classList.toggle('expanded');
+  btn.textContent = expanded ? '▲ show less' : '▼ show more';
 }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEdit(); });
