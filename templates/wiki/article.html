@@ -60,22 +60,8 @@
       {% endif %}
     </div>
 
-    <!-- Likes & comments bar -->
+    <!-- Meta bar -->
     <div class="flex items-center gap-5 px-8 py-3 border-b border-line bg-faint">
-
-      <!-- Like button -->
-      <button id="like-btn"
-              class="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition group"
-              title="Like this article">
-        <svg id="like-icon" class="w-4 h-4 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017
-                   c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095
-                   c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9
-                   m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/>
-        </svg>
-        <span id="like-count">{{ page.likes or 0 }}</span>
-      </button>
 
       <!-- Comment count anchor -->
       <a href="#comments" class="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition">
@@ -194,30 +180,7 @@
 
 <script>
   const SLUG       = {{ page.slug | tojson }};
-  const likeUrl    = `/wiki/article/${SLUG}/like`;
   const commentUrl = `/wiki/article/${SLUG}/comment`;
-
-  // ── Likes ──────────────────────────────────────────────────────────────────
-  const likeBtn   = document.getElementById('like-btn');
-  const likeCount = document.getElementById('like-count');
-  const likeIcon  = document.getElementById('like-icon');
-  let liked = false;
-
-  likeBtn.addEventListener('click', async () => {
-    if (liked) return;
-    liked = true;
-    likeIcon.setAttribute('fill', '#0b0380');
-    likeIcon.setAttribute('stroke', '#0b0380');
-    try {
-      const res  = await fetch(likeUrl, { method: 'POST' });
-      const data = await res.json();
-      likeCount.textContent = data.likes;
-    } catch {
-      liked = false;
-      likeIcon.setAttribute('fill', 'none');
-      likeIcon.setAttribute('stroke', 'currentColor');
-    }
-  });
 
   // ── Comments ───────────────────────────────────────────────────────────────
   const commentSubmit  = document.getElementById('comment-submit');

@@ -12,13 +12,12 @@ class WikiPage(db.Model):
     title       = db.Column(db.String(255), nullable=False)
     slug        = db.Column(db.String(255), nullable=False, unique=True)
     body        = db.Column(db.Text, default="")
-    description = db.Column(db.String(500), default="")    # short excerpt shown on cards
-    cover_image = db.Column(db.String(500), nullable=True) # filename in wiki_uploads/
-    carousel_image = db.Column(db.String(500), nullable=True)  # optional override for carousel; falls back to cover_image
+    description = db.Column(db.String(500), default="")
+    cover_image = db.Column(db.String(500), nullable=True)
+    carousel_image = db.Column(db.String(500), nullable=True)
     is_published = db.Column(db.Boolean, default=False, nullable=False)
     order       = db.Column(db.Integer, default=0)
-    likes       = db.Column(db.Integer, default=0)
-    comments    = db.Column(db.JSON, default=list)          # [{author, text, at}]
+    comments    = db.Column(db.JSON, default=list)
     created_by  = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     updated_by  = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
@@ -80,7 +79,7 @@ class WikiAttachment(db.Model):
 
     id            = db.Column(db.Integer, primary_key=True)
     page_id       = db.Column(db.Integer, db.ForeignKey("wiki_pages.id"), nullable=False)
-    filename      = db.Column(db.String(255), nullable=False)   # uuid-based stored name
+    filename      = db.Column(db.String(255), nullable=False)
     original_name = db.Column(db.String(255), nullable=False)
     uploaded_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)

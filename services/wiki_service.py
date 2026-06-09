@@ -34,8 +34,7 @@ def get_published_pages():
 
 
 def get_page_or_404(page_id):
-    page = WikiPage.query.filter_by(id=page_id, is_deleted=False).first_or_404()
-    return page
+    return WikiPage.query.filter_by(id=page_id, is_deleted=False).first_or_404()
 
 
 def get_page_by_slug(slug):
@@ -54,8 +53,7 @@ def get_page_history(page_id):
 
 
 def get_attachment_or_404(attachment_id):
-    att = WikiAttachment.query.get_or_404(attachment_id)
-    return att
+    return WikiAttachment.query.get_or_404(attachment_id)
 
 
 # ── Mutations ──────────────────────────────────────────────────────────────────
@@ -99,7 +97,6 @@ def update_page(page, title, body, parent_id, is_published, updated_by,
     if not title:
         raise ValueError("Title is required.")
 
-    # snapshot history before overwriting
     snap = WikiHistory(page_id=page.id, title=page.title, body=page.body, saved_by=updated_by)
     db.session.add(snap)
 
@@ -177,12 +174,10 @@ def _save_image(file_storage, prefix):
 
 
 def save_cover_image(file_storage):
-    """Save a cover image and return the stored filename."""
     return _save_image(file_storage, prefix="cover")
 
 
 def save_carousel_image(file_storage):
-    """Save a carousel image override and return the stored filename."""
     return _save_image(file_storage, prefix="carousel")
 
 
@@ -194,13 +189,7 @@ def delete_attachment(attachment):
     db.session.commit()
 
 
-# ── Likes & Comments ───────────────────────────────────────────────────────────
-
-def like_page(page):
-    page.likes = (page.likes or 0) + 1
-    db.session.commit()
-    return page.likes
-
+# ── Comments ───────────────────────────────────────────────────────────────────
 
 def add_comment(page, author, text):
     from datetime import datetime
