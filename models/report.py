@@ -16,6 +16,8 @@ class Report(db.Model):
     config  = db.Column(db.JSON, default=dict)
     creator = db.relationship("User", foreign_keys=[created_by])
 
+    form = db.relationship("FormConfig", foreign_keys=[form_config_id])
+
     def soft_delete(self):
         self.is_deleted = True
         self.deleted_at = datetime.utcnow()

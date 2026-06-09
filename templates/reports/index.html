@@ -1,71 +1,195 @@
 {% extends "base.html" %}
 {% block title %}Reports — Support System{% endblock %}
 
+{% block head %}
+<style>
+  /* ── pivot-style table ───────────────────────────────────────────────────── */
+  .rpt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+  .rpt-table thead tr {
+    background: #f7f7f5;
+    border-bottom: 2px solid #e8e8e4;
+  }
+  .rpt-table thead th {
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: #3d424d;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  .rpt-table thead th:hover { color: #0b0380; }
+  .rpt-table thead th .sort-icon { display: inline-block; margin-left: 4px; opacity: .35; font-size: 10px; }
+  .rpt-table thead th.sorted   .sort-icon { opacity: 1; color: #0b0380; }
+
+  .rpt-table tbody tr {
+    border-bottom: 1px solid #e8e8e4;
+    transition: background .1s;
+  }
+  .rpt-table tbody tr:hover { background: #f7f7f5; }
+  .rpt-table tbody tr.deleted-row { opacity: .55; }
+
+  .rpt-table td { padding: 11px 14px; vertical-align: middle; color: #0b0380; }
+  .rpt-table td.muted { color: #3d424d; }
+  .rpt-table td.mono  { font-variant-numeric: tabular-nums; font-size: 12px; }
+
+  .rpt-table td a.row-link {
+    font-weight: 500;
+    color: #0b0380;
+    text-decoration: none;
+  }
+  .rpt-table td a.row-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* badges */
+  .badge {
+    display: inline-block;
+    font-size: 11px; font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 6px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .badge-purple { background:#f5f3ff; color:#7c3aed; border-color:#ddd6fe; }
+  .badge-blue   { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+  .badge-amber  { background:#fffbeb; color:#d97706; border-color:#fde68a; }
+  .badge-gray   { background:#f7f7f5; color:#3d424d; border-color:#e8e8e4; }
+  .badge-red    { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+
+  /* action buttons */
+  .act-btn {
+    display: inline-flex; align-items: center;
+    padding: 4px 10px;
+    font-size: 12px; font-weight: 500; font-family: inherit;
+    border-radius: 8px;
+    border: 1px solid #e8e8e4;
+    background: #fff;
+    color: #3d424d;
+    cursor: pointer;
+    transition: all .15s;
+    text-decoration: none;
+  }
+  .act-btn:hover              { border-color: #0b0380; color: #0b0380; background: #eff6ff; }
+  .act-btn.danger:hover       { border-color: #fca5a5; color: #dc2626; background: #fef2f2; }
+  .act-btn.restore:hover      { border-color: #6ee7b7; color: #059669; background: #ecfdf5; }
+
+  /* tab toggle */
+  .tab-btn { font-size: 13px; font-weight: 500; padding: 5px 14px; border-radius: 9px;
+             border: 1px solid transparent; cursor: pointer; transition: all .15s; font-family: inherit; background: none; }
+  .tab-btn.active { background: #fff; border-color: #e8e8e4; color: #0b0380; }
+  .tab-btn:not(.active) { color: #3d424d; }
+  .tab-btn:not(.active):hover { color: #0b0380; background: #fff; }
+
+  /* confirm modal */
+  #del-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35);
+               z-index:200; align-items:center; justify-content:center; }
+  #del-modal.open { display:flex; }
+  #del-box { background:#fff; border-radius:18px; padding:28px 28px 22px;
+             max-width:380px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-6xl mx-auto px-8 py-8">
 
   <!-- Header -->
-  <div class="flex items-center justify-between mb-8">
+  <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="font-serif text-2xl text-ink">Reports</h1>
-      <p class="text-muted text-sm mt-0.5">{{ reports | length }} saved report{{ 's' if reports | length != 1 }}</p>
+      <p class="text-muted text-sm mt-0.5" id="count-label"></p>
     </div>
-    {% if can_create %}
-    <a href="{{ url_for('reports.create') }}"
-       class="inline-flex items-center gap-1.5 bg-ink text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-800 transition">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-      </svg>
-      New Report
-    </a>
-    {% endif %}
+    <div class="flex items-center gap-3">
+      <!-- Active / Deleted tabs -->
+      {% if can_delete %}
+      <div class="flex items-center gap-1 bg-faint border border-line rounded-xl p-1">
+        <button class="tab-btn active" id="tab-active" onclick="showTab('active')">Active</button>
+        <button class="tab-btn"        id="tab-deleted" onclick="showTab('deleted')">
+          Trash
+          {% if deleted_reports %}
+          <span class="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-100 text-red-600 text-[10px] font-bold">{{ deleted_reports | length }}</span>
+          {% endif %}
+        </button>
+      </div>
+      {% endif %}
+
+      {% if can_create %}
+      <a href="{{ url_for('reports.create') }}"
+         class="inline-flex items-center gap-1.5 bg-ink text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-indigo-700 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        New Report
+      </a>
+      {% endif %}
+    </div>
   </div>
 
+  <!-- ── Active reports table ───────────────────────────────────────────── -->
+  <div id="pane-active">
   {% if reports %}
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-    {% for r in reports %}
-    {% set cfg = r.config or {} %}
-    {% set chart_icon = {
-      'bar':   '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>',
-      'pie':   '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>',
-      'line':  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>',
-      'table': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M10 4v16M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/>',
-    } %}
-    <a href="{{ url_for('reports.view', report_id=r.id) }}"
-       class="group bg-white border border-line rounded-2xl p-5 hover:border-ink/30 hover:shadow-sm transition flex flex-col gap-3">
-      <div class="flex items-start justify-between gap-3">
-        <div class="w-9 h-9 rounded-xl bg-faint border border-line flex items-center justify-center shrink-0">
-          <svg class="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {{ chart_icon.get(cfg.get('chart_type', 'bar'), chart_icon['bar']) | safe }}
-          </svg>
-        </div>
-        <span class="text-xs text-muted bg-faint border border-line rounded-lg px-2 py-0.5 capitalize shrink-0">
-          {{ cfg.get('chart_type', 'bar') }}
-        </span>
-      </div>
-      <div>
-        <p class="font-medium text-sm text-ink group-hover:underline underline-offset-2">{{ r.title }}</p>
-        <p class="text-xs text-muted mt-0.5">{{ r.form.name if r.form else '—' }}</p>
-      </div>
-      <div class="flex items-center gap-2 mt-auto pt-1 border-t border-line">
-        {% if cfg.get('filter_status') %}
-        <span class="text-xs bg-blue-50 text-blue-600 border border-blue-100 rounded-md px-1.5 py-0.5">
-          {{ cfg.filter_status }}
-        </span>
-        {% endif %}
-        {% if cfg.get('filter_priority') %}
-        <span class="text-xs bg-amber-50 text-amber-600 border border-amber-100 rounded-md px-1.5 py-0.5">
-          {{ cfg.filter_priority }}
-        </span>
-        {% endif %}
-        <span class="text-xs text-muted ml-auto">{{ r.created_at.strftime('%d %b %Y') }}</span>
-      </div>
-    </a>
-    {% endfor %}
+  <div class="bg-white border border-line rounded-2xl overflow-hidden">
+    <table class="rpt-table" id="active-tbl">
+      <thead>
+        <tr>
+          <th onclick="sortTable('active-tbl',0,this)">Title <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('active-tbl',1,this)">Form <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('active-tbl',2,this)">Renderer <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('active-tbl',3,this)">Date range <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('active-tbl',4,this)">Filters <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('active-tbl',5,this)">Created <span class="sort-icon">↕</span></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reports %}
+        {% set cfg = r.config or {} %}
+        {% set pivot = cfg.get('pivot') or {} %}
+        {% set renderer = pivot.get('renderer', 'Table') %}
+        {% set dr = cfg.get('date_range', '0')|string %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('reports.view', report_id=r.id) }}">{{ r.title }}</a></td>
+          <td class="muted">{{ r.form.name if r.form else '—' }}</td>
+          <td><span class="badge badge-gray">{{ renderer }}</span></td>
+          <td class="muted" data-sort="
+            {%- if dr == 'custom' -%}{{ cfg.get('date_from','') }}
+            {%- elif dr != '0' -%}{{ dr|int }}
+            {%- else -%}0{%- endif -%}">
+            {%- if dr == 'custom' -%}
+              <span class="badge badge-purple">{{ cfg.get('date_from','…') }} → {{ cfg.get('date_to','…') }}</span>
+            {%- elif dr != '0' -%}
+              <span class="badge badge-purple">Last {{ dr }} days</span>
+            {%- else -%}
+              <span class="text-muted text-xs">All time</span>
+            {%- endif -%}
+          </td>
+          <td>
+            {% if cfg.get('filter_status') %}
+            <span class="badge badge-blue mr-1">{{ cfg.filter_status }}</span>
+            {% endif %}
+            {% if cfg.get('filter_priority') %}
+            <span class="badge badge-amber">{{ cfg.filter_priority }}</span>
+            {% endif %}
+            {% if not cfg.get('filter_status') and not cfg.get('filter_priority') %}
+            <span class="text-muted text-xs">—</span>
+            {% endif %}
+          </td>
+          <td class="muted mono">{{ r.created_at.strftime('%d %b %Y') }}</td>
+          <td class="text-right" style="white-space:nowrap">
+            <a class="act-btn" href="{{ url_for('reports.view', report_id=r.id) }}">Open</a>
+            {% if can_delete %}
+            <button class="act-btn danger ml-1 del-btn"
+                    data-id="{{ r.id }}"
+                    data-title="{{ r.title | e }}">
+              Delete
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-
   {% else %}
-  <!-- Empty state -->
   <div class="bg-white border border-line rounded-2xl px-8 py-16 text-center">
     <div class="w-12 h-12 rounded-2xl bg-faint border border-line flex items-center justify-center mx-auto mb-4">
       <svg class="w-6 h-6 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -74,10 +198,10 @@
       </svg>
     </div>
     <p class="text-ink font-medium text-sm">No reports yet</p>
-    <p class="text-muted text-sm mt-1">Create a report to visualise submission data across your forms.</p>
+    <p class="text-muted text-sm mt-1">Create a report to explore submission data with a pivot table.</p>
     {% if can_create %}
     <a href="{{ url_for('reports.create') }}"
-       class="inline-flex items-center gap-1.5 bg-ink text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-800 transition mt-5">
+       class="inline-flex items-center gap-1.5 bg-ink text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-indigo-700 transition mt-5">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
       </svg>
@@ -86,6 +210,185 @@
     {% endif %}
   </div>
   {% endif %}
+  </div>
+
+  <!-- ── Deleted reports table ──────────────────────────────────────────── -->
+  {% if can_delete %}
+  <div id="pane-deleted" style="display:none">
+  {% if deleted_reports %}
+  <div class="flex items-center justify-between mb-3">
+    <p class="text-sm text-muted">{{ deleted_reports | length }} report{{ 's' if deleted_reports | length != 1 }} in trash</p>
+    <button type="button" id="clear-trash-btn"
+            class="inline-flex items-center gap-1.5 text-sm font-medium text-red-600 border border-red-200 bg-white px-3 py-1.5 rounded-xl hover:bg-red-50 transition">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg>
+      Clear Trash
+    </button>
+  </div>
+  <div class="bg-white border border-line rounded-2xl overflow-hidden">
+    <table class="rpt-table" id="deleted-tbl">
+      <thead>
+        <tr>
+          <th onclick="sortTable('deleted-tbl',0,this)">Title <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('deleted-tbl',1,this)">Form <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('deleted-tbl',2,this)">Deleted <span class="sort-icon">↕</span></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in deleted_reports %}
+        <tr class="deleted-row">
+          <td class="text-muted font-medium">{{ r.title }}</td>
+          <td class="muted">{{ r.form.name if r.form else '—' }}</td>
+          <td class="muted mono">{{ r.deleted_at.strftime('%d %b %Y') if r.deleted_at else '—' }}</td>
+          <td class="text-right" style="white-space:nowrap">
+            <form method="POST" action="{{ url_for('reports.restore', report_id=r.id) }}" style="display:inline">
+              <button type="submit" class="act-btn restore">Restore</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="bg-white border border-line rounded-2xl px-8 py-12 text-center">
+    <p class="text-muted text-sm">Trash is empty.</p>
+  </div>
+  {% endif %}
+  </div>
+  {% endif %}
 
 </div>
+
+<!-- ── Delete confirm modal ────────────────────────────────────────────────── -->
+<div id="del-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; align-items:center; justify-content:center;">
+  <div id="del-box">
+    <p class="font-serif text-lg text-ink mb-1" id="del-title">Move to trash?</p>
+    <p class="text-muted text-sm mb-6" id="del-body"></p>
+    <div class="flex items-center justify-end gap-3">
+      <button type="button" onclick="closeDel()"
+              class="text-sm text-muted hover:text-ink px-4 py-2 rounded-xl hover:bg-faint transition">
+        Cancel
+      </button>
+      <form id="del-form" method="POST">
+        <button type="submit"
+                class="bg-red-600 text-white text-sm font-medium px-5 py-2 rounded-xl hover:bg-red-700 transition"
+                id="del-confirm-btn">
+          Move to trash
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Clear trash confirm modal ───────────────────────────────────────────── -->
+<div id="clear-trash-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; align-items:center; justify-content:center;">
+  <div id="del-box">
+    <p class="font-serif text-lg text-ink mb-1">Clear trash?</p>
+    <p class="text-muted text-sm mb-6">All reports in trash will be permanently removed and cannot be recovered.</p>
+    <div class="flex items-center justify-end gap-3">
+      <button type="button" onclick="closeClearTrash()"
+              class="text-sm text-muted hover:text-ink px-4 py-2 rounded-xl hover:bg-faint transition">
+        Cancel
+      </button>
+      <form method="POST" action="{{ url_for('reports.clear_trash') }}">
+        <button type="submit"
+                class="bg-red-600 text-white text-sm font-medium px-5 py-2 rounded-xl hover:bg-red-700 transition">
+          Clear trash
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Tab switching ────────────────────────────────────────────────────────────
+function showTab(tab) {
+  document.getElementById("pane-active").style.display  = tab === "active"  ? "" : "none";
+  const delPane = document.getElementById("pane-deleted");
+  if (delPane) delPane.style.display = tab === "deleted" ? "" : "none";
+  document.getElementById("tab-active").classList.toggle("active",  tab === "active");
+  document.getElementById("tab-deleted").classList.toggle("active", tab === "deleted");
+  updateCount(tab);
+}
+
+function updateCount(tab) {
+  const activeRows  = document.querySelectorAll("#active-tbl  tbody tr").length;
+  const deletedRows = document.querySelectorAll("#deleted-tbl tbody tr").length;
+  const n    = tab === "active" ? activeRows : deletedRows;
+  const word = tab === "active" ? "report" : "deleted report";
+  document.getElementById("count-label").textContent =
+    n + " " + word + (n !== 1 ? "s" : "");
+}
+updateCount("active");
+
+// ── Column sort ──────────────────────────────────────────────────────────────
+let sortState = {};
+function sortTable(tblId, colIdx, th) {
+  const tbl   = document.getElementById(tblId);
+  const tbody = tbl.querySelector("tbody");
+  const rows  = [...tbody.querySelectorAll("tr")];
+  const key   = tblId + colIdx;
+  const asc   = sortState[key] !== true;
+  sortState[key] = asc;
+
+  rows.sort((a, b) => {
+    const aCell = a.querySelectorAll("td")[colIdx];
+    const bCell = b.querySelectorAll("td")[colIdx];
+    const aVal  = (aCell.dataset.sort ?? aCell.textContent).trim().toLowerCase();
+    const bVal  = (bCell.dataset.sort ?? bCell.textContent).trim().toLowerCase();
+    return asc ? aVal.localeCompare(bVal, undefined, {numeric:true})
+               : bVal.localeCompare(aVal, undefined, {numeric:true});
+  });
+
+  rows.forEach(r => tbody.appendChild(r));
+
+  tbl.querySelectorAll("thead th").forEach((h, i) => {
+    h.classList.toggle("sorted", i === colIdx);
+    const icon = h.querySelector(".sort-icon");
+    if (icon) icon.textContent = i === colIdx ? (asc ? "↑" : "↓") : "↕";
+  });
+}
+
+// ── Delete modal ─────────────────────────────────────────────────────────────
+document.addEventListener("click", e => {
+  const btn = e.target.closest(".del-btn");
+  if (!btn) return;
+  const id    = btn.dataset.id;
+  const title = btn.dataset.title;
+  document.getElementById("del-title").textContent = "Move to trash?";
+  document.getElementById("del-body").textContent  = `"${title}" will be moved to trash. You can restore it later.`;
+  document.getElementById("del-confirm-btn").textContent = "Move to trash";
+  document.getElementById("del-form").action = `/reports/${id}/delete`;
+  document.getElementById("del-modal").style.display = "flex";
+});
+
+function closeDel() {
+  document.getElementById("del-modal").style.display = "none";
+}
+document.getElementById("del-modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("del-modal")) closeDel();
+});
+
+// ── Clear trash modal ─────────────────────────────────────────────────────────
+const clearTrashBtn = document.getElementById("clear-trash-btn");
+if (clearTrashBtn) {
+  clearTrashBtn.addEventListener("click", () => {
+    document.getElementById("clear-trash-modal").style.display = "flex";
+  });
+}
+function closeClearTrash() {
+  document.getElementById("clear-trash-modal").style.display = "none";
+}
+document.getElementById("clear-trash-modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("clear-trash-modal")) closeClearTrash();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeDel(); closeClearTrash(); }
+});
+</script>
 {% endblock %}

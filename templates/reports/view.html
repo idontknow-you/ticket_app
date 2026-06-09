@@ -2,237 +2,1021 @@
 {% block title %}{{ report.title }} — Reports{% endblock %}
 
 {% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  .badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; border:1px solid; }
-  .status-open        { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
-  .status-in_progress { background:#fffbeb; color:#d97706; border-color:#fde68a; }
-  .status-closed      { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ── Page ─────────────────────────────────────────────────────────────── */
+.rpt-page { max-width: 1280px; margin: 0 auto; padding: 32px 24px; }
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.rpt-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.rpt-header-left { display: flex; align-items: center; gap: 12px; }
+.rpt-back { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e8e8e4; background: #fff; color: #6b7280; text-decoration: none; transition: all .15s; flex-shrink: 0; }
+.rpt-back:hover { border-color: #0b0380; color: #0b0380; background: #eef2ff; }
+.rpt-title { font-size: 22px; font-weight: 600; color: #0b0380; margin: 0; line-height: 1.2; }
+.rpt-meta { font-size: 13px; color: #9ca3af; margin: 3px 0 0; }
+.rpt-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; font-size: 12px; font-weight: 500; font-family: inherit; border-radius: 10px; border: 1px solid #e8e8e4; background: #fff; color: #3d424d; cursor: pointer; transition: all .15s; white-space: nowrap; line-height: 1; }
+.btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.btn:hover { border-color: #0b0380; color: #0b0380; background: #eef2ff; }
+.btn-danger { border-color: #fecaca; color: #dc2626; }
+.btn-danger:hover { background: #fef2f2; border-color: #f87171; color: #dc2626; }
+.btn-primary { background: #0b0380; color: #fff; border-color: #0b0380; }
+.btn-primary:hover { background: #0a0270; color: #fff; border-color: #0a0270; }
+.btn-sm { padding: 5px 10px; font-size: 11px; border-radius: 8px; }
+.btn-icon { padding: 5px; width: 28px; height: 28px; justify-content: center; }
+
+/* ── Date picker ──────────────────────────────────────────────────────── */
+.date-wrapper { position: relative; }
+.date-panel { position: absolute; right: 0; top: calc(100% + 6px); width: 256px; background: #fff; border: 1px solid #e8e8e4; border-radius: 14px; box-shadow: 0 8px 28px rgba(0,0,0,.12); z-index: 200; overflow: hidden; display: none; }
+.date-panel.open { display: block; }
+.dp-section { padding: 10px 14px 4px; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #9ca3af; }
+.dp-grid { padding: 2px 6px 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.dp-opt { padding: 7px 10px; font-size: 12px; font-weight: 500; cursor: pointer; color: #3d424d; border: 1px solid transparent; border-radius: 8px; text-align: center; transition: all .12s; }
+.dp-opt:hover { background: #f0f0ec; border-color: #e8e8e4; }
+.dp-opt.active { background: #0b0380; color: #fff; border-color: #0b0380; }
+.dp-custom { padding: 10px 14px 12px; border-top: 1px solid #e8e8e4; display: none; }
+.dp-custom.open { display: block; }
+.dp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.dp-custom label { display: block; font-size: 11px; color: #9ca3af; margin-bottom: 4px; font-weight: 500; }
+.dp-custom input { width: 100%; border: 1px solid #e8e8e4; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-family: inherit; color: #111; background: #fafaf8; outline: none; }
+.dp-custom input:focus { border-color: #0b0380; }
+
+/* ── Export bar ───────────────────────────────────────────────────────── */
+.export-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.export-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #9ca3af; margin-right: 2px; }
+.total-badge { margin-left: auto; font-size: 12px; color: #9ca3af; }
+
+/* ── Pivot card ───────────────────────────────────────────────────────── */
+.pivot-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 18px; overflow: hidden; }
+
+/* ── Toolbar ──────────────────────────────────────────────────────────── */
+.pivot-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid #e8e8e4; background: #fafaf8; }
+.t-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #9ca3af; flex-shrink: 0; }
+.t-divider { width: 1px; height: 20px; background: #e8e8e4; flex-shrink: 0; }
+.agg-select { border: 1px solid #e8e8e4; border-radius: 8px; padding: 5px 10px; background: #fff; font-family: inherit; font-size: 12px; color: #0b0380; outline: none; cursor: pointer; }
+.agg-select:focus { border-color: #0b0380; box-shadow: 0 0 0 2px #dbeafe; }
+
+.view-pills { display: flex; gap: 3px; flex-wrap: wrap; }
+.view-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; font-size: 11px; font-weight: 500; border: 1px solid #e8e8e4; border-radius: 20px; background: #fff; color: #6b7280; cursor: pointer; transition: all .13s; white-space: nowrap; font-family: inherit; line-height: 1; }
+.view-pill svg { width: 11px; height: 11px; flex-shrink: 0; }
+.view-pill:hover { border-color: #a5b4fc; color: #4f46e5; background: #eef2ff; }
+.view-pill.active { border-color: #0b0380; background: #0b0380; color: #fff; }
+
+.clear-btn { display: inline-flex; align-items: center; gap: 3px; padding: 4px 9px; font-size: 11px; font-weight: 500; border: 1px solid #fecaca; border-radius: 8px; background: #fff; color: #dc2626; cursor: pointer; transition: all .13s; font-family: inherit; line-height: 1; }
+.clear-btn:hover { background: #fef2f2; border-color: #f87171; }
+.clear-btn svg { width: 10px; height: 10px; flex-shrink: 0; }
+
+.autosave { margin-left: auto; font-size: 11px; color: #9ca3af; display: flex; align-items: center; gap: 4px; opacity: 0; transition: opacity .3s; }
+.autosave.saving { opacity: 1; color: #6366f1; }
+.autosave.saved { opacity: 1; color: #059669; }
+.autosave.error { opacity: 1; color: #dc2626; }
+
+/* ── Pivot body — classic layout ──────────────────────────────────────── */
+/*  Col1=Fields | Col2=[ ColsZone top | RowsZone+Output bottom ]          */
+.pivot-body { display: grid; grid-template-columns: 160px 1fr; grid-template-rows: auto 1fr; min-height: 360px; }
+
+/* ── Fields panel — left, full height ────────────────────────────────── */
+.fields-panel { grid-column: 1; grid-row: 1 / 3; border-right: 1px solid #e8e8e4; padding: 14px 12px; }
+.zone-title { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #9ca3af; display: block; margin-bottom: 10px; }
+.fields-list { display: flex; flex-direction: column; gap: 4px; }
+
+/* ── Columns zone — top strip above data ─────────────────────────────── */
+.cols-zone-wrap { grid-column: 2; grid-row: 1; border-bottom: 1px solid #e8e8e4; padding: 10px 14px; background: #fafaf8; }
+
+/* ── Bottom row: rows zone + output ──────────────────────────────────── */
+.data-row { grid-column: 2; grid-row: 2; display: flex; align-items: flex-start; }
+
+/* ── Rows zone — left strip beside data ──────────────────────────────── */
+.rows-zone-wrap { flex: 0 0 144px; border-right: 1px solid #e8e8e4; padding: 10px 12px; align-self: stretch; background: #fafaf8; }
+
+/* ── Drop zones ───────────────────────────────────────────────────────── */
+.drop-zone { border-radius: 10px; padding: 8px 10px; min-height: 44px; transition: outline .12s; }
+.drop-zone.zone-rows { border: 1.5px dashed #c7d2fe; background: #eef2ff; }
+.drop-zone.zone-cols { border: 1.5px dashed #a5f3d0; background: #ecfdf5; }
+.drop-zone.drag-over { outline: 2px dashed #6366f1; outline-offset: 2px; }
+.zone-drop-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; display: block; margin-bottom: 6px; }
+.zone-rows .zone-drop-label { color: #6366f1; }
+.zone-cols .zone-drop-label { color: #059669; }
+.drop-hint { font-size: 11px; color: #c4c4be; font-style: italic; display: block; padding: 2px 0; }
+.pills-wrap { display: flex; flex-direction: column; gap: 3px; }
+/* cols zone pills flow left-to-right */
+.zone-cols .pills-wrap { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.zone-cols .pill { width: auto; }
+
+/* ── Output panel ─────────────────────────────────────────────────────── */
+.output-panel { flex: 1; min-width: 0; padding: 16px; overflow-x: auto; }
+.output-empty { font-size: 13px; color: #9ca3af; padding: 40px 0 20px; text-align: center; }
+.output-empty svg { width: 36px; height: 36px; color: #d1d5db; margin: 0 auto 10px; display: block; }
+
+/* ── Pills ────────────────────────────────────────────────────────────── */
+.pill { display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1px solid #e8e8e4; border-radius: 20px; padding: 3px 8px 3px 10px; font-size: 12px; font-weight: 500; color: #0b0380; cursor: grab; user-select: none; transition: box-shadow .15s, border-color .15s; white-space: nowrap; width: 100%; justify-content: space-between; }
+.pill:active { cursor: grabbing; }
+.pill:hover { border-color: #a5b4fc; box-shadow: 0 2px 8px rgba(99,102,241,.13); }
+.pill.dragging { opacity: .35; }
+.pill-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pill-rm { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; border: none; background: transparent; color: #9ca3af; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; flex-shrink: 0; transition: all .12s; }
+.pill-rm:hover { background: #fee2e2; color: #dc2626; }
+.zone-rows .pill { background: #e0e7ff; border-color: #a5b4fc; color: #3730a3; }
+.zone-cols .pill { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+.field-pill { justify-content: flex-start; gap: 6px; }
+.field-pill::before { content: "⋮⋮"; font-size: 9px; color: #c4c4be; flex-shrink: 0; letter-spacing: -1px; }
+
+/* ── Table output ─────────────────────────────────────────────────────── */
+.pvt-table { border-collapse: collapse; font-size: 13px; width: auto; }
+.pvt-table th, .pvt-table td { border: 1px solid #e8e8e4; padding: 6px 14px; white-space: nowrap; }
+.pvt-table th { font-weight: 600; background: #f7f7f5; color: #0b0380; text-align: left; }
+.pvt-table .val { text-align: right; color: #111; }
+.pvt-table .val:hover { background: #eff6ff; }
+.pvt-table .t-label { font-weight: 700; background: #f7f7f5; color: #3d424d; }
+.pvt-table .t-val { font-weight: 700; background: #f0f0ec; color: #0b0380; text-align: right; }
+.pvt-table .grand { background: #ede9fe; color: #5b21b6; font-weight: 700; text-align: right; }
+
+/* ── Chart ────────────────────────────────────────────────────────────── */
+#chart-wrap { width: 100%; }
+#chart-wrap canvas { max-width: 100%; display: block; }
+
+/* ── Filter popup ─────────────────────────────────────────────────────── */
+.filter-popup { position: fixed; background: #fff; border: 1px solid #e8e8e4; border-radius: 14px; box-shadow: 0 8px 28px rgba(0,0,0,.14); z-index: 9000; width: 220px; overflow: hidden; font-size: 13px; }
+.fp-header { padding: 10px 14px 6px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0ec; background: #fafaf8; }
+.fp-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #9ca3af; }
+.fp-search { width: 100%; border: 1px solid #e8e8e4; border-radius: 7px; padding: 5px 9px; font-size: 12px; font-family: inherit; outline: none; margin: 8px 14px; width: calc(100% - 28px); display: block; }
+.fp-search:focus { border-color: #0b0380; }
+.fp-list { max-height: 200px; overflow-y: auto; padding: 4px 6px; }
+.fp-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; cursor: pointer; color: #3d424d; }
+.fp-item:hover { background: #f4f4f0; }
+.fp-item input[type=checkbox] { accent-color: #0b0380; width: 13px; height: 13px; flex-shrink: 0; cursor: pointer; }
+.fp-item label { cursor: pointer; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.fp-footer { padding: 8px 10px; border-top: 1px solid #e8e8e4; background: #fafaf8; display: flex; gap: 6px; }
+.fp-footer button { flex: 1; padding: 5px 0; font-size: 11px; font-weight: 500; font-family: inherit; border-radius: 7px; cursor: pointer; border: 1px solid #e8e8e4; background: #fff; color: #6b7280; }
+.fp-footer button.fp-apply { background: #0b0380; color: #fff; border-color: #0b0380; }
+.fp-footer button.fp-apply:hover { background: #0a0270; }
+.fp-footer button:not(.fp-apply):hover { background: #f4f4f0; }
+/* filter indicator dot on pills */
+.pill.filtered::after { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; margin-left: 2px; flex-shrink: 0; }
+
+/* ── Toast ────────────────────────────────────────────────────────────── */
+#toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1f2937; color: #fff; padding: 10px 18px; border-radius: 12px; font-size: 13px; display: flex; align-items: center; gap: 10px; transition: transform .22s cubic-bezier(.34,1.56,.64,1); z-index: 9999; white-space: nowrap; pointer-events: none; }
+#toast.show { transform: translateX(-50%) translateY(0); pointer-events: auto; }
+#toast-undo { background: #4f46e5; border: none; color: #fff; padding: 4px 11px; border-radius: 6px; font-size: 12px; font-family: inherit; cursor: pointer; transition: background .12s; }
+#toast-undo:hover { background: #4338ca; }
+
+/* ── Resize handle between panels ────────────────────────────────────── */
+@media (max-width: 720px) {
+  .pivot-body { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+  .fields-panel { grid-column: 1; grid-row: 1; border-right: none; border-bottom: 1px solid #e8e8e4; }
+  .cols-zone-wrap { grid-column: 1; grid-row: 2; }
+  .data-row { grid-column: 1; grid-row: 3; flex-direction: column; }
+  .rows-zone-wrap { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #e8e8e4; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto px-8 py-8">
+<div class="rpt-page">
 
-  <!-- Back + header -->
-  <div class="flex items-start justify-between mb-8">
-    <div class="flex items-center gap-3">
-      <a href="{{ url_for('reports.index') }}" class="text-muted hover:text-ink transition mt-0.5">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-        </svg>
+  <!-- ── Header ── -->
+  <div class="rpt-header">
+    <div class="rpt-header-left">
+      <a href="{{ url_for('reports.index') }}" class="rpt-back" title="Back to reports">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
       </a>
       <div>
-        <h1 class="font-serif text-2xl text-ink">{{ report.title }}</h1>
-        <p class="text-muted text-sm mt-0.5">
+        <h1 class="rpt-title">{{ report.title }}</h1>
+        <p class="rpt-meta">
           {{ report.form.name if report.form else '—' }}
-          · Created {{ report.created_at.strftime('%d %b %Y') }}
-          {% if report.creator %} by {{ report.creator.name or report.creator.username }}{% endif %}
+          &middot; Created {{ report.created_at.strftime('%d %b %Y') }}
+          {% if report.creator %}&middot; {{ report.creator.name or report.creator.username }}{% endif %}
         </p>
       </div>
     </div>
-
-    <div class="flex items-center gap-2">
-      <!-- Refresh -->
-      <button id="refresh-btn"
-              class="inline-flex items-center gap-1.5 bg-white border border-line text-ink text-sm font-medium px-3 py-2 rounded-xl hover:bg-faint transition">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-        </svg>
-        Refresh
-      </button>
+    <div class="rpt-actions">
+      <!-- Date range picker -->
+      <div class="date-wrapper">
+        <button class="btn" id="date-btn">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <span id="date-label">{{ 'All time' if active_preset == '0' else ('Last ' + active_preset + ' days' if active_preset not in ('custom','0') else ('Custom range' if active_preset == 'custom' else 'All time')) }}</span>
+          <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div class="date-panel" id="date-panel">
+          <div class="dp-section">Quick select</div>
+          <div class="dp-grid">
+            <div class="dp-opt {% if active_preset == '0' %}active{% endif %}" data-preset="0">All time</div>
+            <div class="dp-opt {% if active_preset == '7' %}active{% endif %}" data-preset="7">Last 7 days</div>
+            <div class="dp-opt {% if active_preset == '30' %}active{% endif %}" data-preset="30">Last 30 days</div>
+            <div class="dp-opt {% if active_preset == '90' %}active{% endif %}" data-preset="90">Last 90 days</div>
+            <div class="dp-opt {% if active_preset == 'custom' %}active{% endif %}" data-preset="custom" style="grid-column:span 2">Custom range…</div>
+          </div>
+          <div class="dp-custom {% if active_preset == 'custom' %}open{% endif %}" id="dp-custom">
+            <div class="dp-row">
+              <div><label>From</label><input type="date" id="date-from" value="{{ date_from }}"></div>
+              <div><label>To</label><input type="date" id="date-to" value="{{ date_to }}"></div>
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center" id="apply-custom">Apply range</button>
+          </div>
+        </div>
+      </div>
 
       {% if can_delete %}
-      <form method="POST" action="{{ url_for('reports.delete', report_id=report.id) }}"
-            onsubmit="return confirm('Delete this report?')">
-        <button type="submit"
-                class="inline-flex items-center gap-1.5 bg-white border border-red-200 text-red-500 text-sm font-medium px-3 py-2 rounded-xl hover:bg-red-50 transition">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-          </svg>
-          Delete
-        </button>
-      </form>
+      <button class="btn btn-danger del-btn"
+              data-id="{{ report.id }}"
+              data-title="{{ report.title | e }}">
+        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Delete
+      </button>
+
+      <!-- Delete modal -->
+      <div id="del-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:300; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:18px; padding:28px 28px 22px; max-width:380px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,.2);">
+          <p style="font-size:18px; font-weight:600; color:#111; margin:0 0 8px;">Move to trash?</p>
+          <p style="font-size:14px; color:#6b7280; margin:0 0 24px;">"{{ report.title }}" will be moved to trash. You can restore it from the Reports list.</p>
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button type="button" id="del-cancel"
+                    style="font-size:13px; color:#6b7280; background:none; border:none; padding:8px 16px; border-radius:10px; cursor:pointer;">
+              Cancel
+            </button>
+            <form method="POST" action="{{ url_for('reports.delete', report_id=report.id) }}">
+              <button type="submit"
+                      style="background:#dc2626; color:#fff; font-size:13px; font-weight:500; border:none; padding:8px 20px; border-radius:10px; cursor:pointer;">
+                Move to trash
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
       {% endif %}
     </div>
   </div>
 
-  <!-- Config badges -->
-  {% set cfg = report.config or {} %}
-  <div class="flex items-center gap-2 mb-6 flex-wrap">
-    <span class="text-xs bg-faint border border-line text-ink rounded-lg px-2.5 py-1 capitalize font-medium">
-      {{ cfg.get('chart_type', 'bar') }} chart
-    </span>
-    <span class="text-xs bg-faint border border-line text-muted rounded-lg px-2.5 py-1">
-      Grouped by <strong class="text-ink">{{ cfg.get('group_by', 'status').replace('__','').replace('_',' ').title() if cfg.get('group_by','').startswith('__') else cfg.get('group_by','status') }}</strong>
-    </span>
-    {% if cfg.get('filter_status') %}
-    <span class="text-xs bg-blue-50 text-blue-600 border border-blue-100 rounded-lg px-2.5 py-1">
-      Status: {{ cfg.filter_status }}
-    </span>
-    {% endif %}
-    {% if cfg.get('filter_priority') %}
-    <span class="text-xs bg-amber-50 text-amber-600 border border-amber-100 rounded-lg px-2.5 py-1">
-      Priority: {{ cfg.filter_priority }}
-    </span>
-    {% endif %}
-    {% if cfg.get('date_range') and cfg.date_range != 0 %}
-    <span class="text-xs bg-purple-50 text-purple-600 border border-purple-100 rounded-lg px-2.5 py-1">
-      Last {{ cfg.date_range }} days
-    </span>
-    {% endif %}
-    <span class="text-xs text-muted ml-auto" id="total-label">
-      — submissions
-    </span>
+  <!-- ── Export bar ── -->
+  <div class="export-bar">
+    <span class="export-label">Export</span>
+    <button class="btn btn-sm" id="exp-csv">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>CSV</button>
+    <button class="btn btn-sm" id="exp-xlsx">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M10 4v16M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>Excel</button>
+    <button class="btn btn-sm" id="exp-pdf">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>PDF</button>
+    <button class="btn btn-sm" id="exp-png">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>PNG</button>
+    <span class="total-badge">{{ total }} submission{{ 's' if total != 1 }}</span>
   </div>
 
-  <!-- Chart card -->
-  <div class="bg-white border border-line rounded-2xl p-6 mb-5" id="chart-card">
-    {% if chart_type == 'table' %}
-    <!-- Table view -->
-    <div id="table-container">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-line">
-            <th class="text-left font-medium text-muted pb-3 pr-4">Value</th>
-            <th class="text-right font-medium text-muted pb-3">Count</th>
-            <th class="text-right font-medium text-muted pb-3 pl-4">Share</th>
-          </tr>
-        </thead>
-        <tbody id="table-body" class="divide-y divide-line">
-          <!-- filled by JS -->
-        </tbody>
-      </table>
+  <!-- ── Pivot card ── -->
+  <div class="pivot-card" id="pivot-card">
+
+    <!-- Toolbar -->
+    <div class="pivot-toolbar">
+      <span class="t-label">Aggregate</span>
+      <select class="agg-select" id="agg-select">
+        <option value="count">Count</option>
+        <option value="count_unique">Count Unique</option>
+        <option value="sum">Sum</option>
+        <option value="avg">Average</option>
+        <option value="min">Min</option>
+        <option value="max">Max</option>
+      </select>
+
+      <div class="t-divider"></div>
+      <span class="t-label">View as</span>
+      <div class="view-pills">
+        <button class="view-pill active" data-view="table">
+          <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Table</button>
+        <button class="view-pill" data-view="bar">
+          <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="7" width="3" height="8"/><rect x="6" y="4" width="3" height="11"/><rect x="11" y="1" width="3" height="14"/></svg>Bar</button>
+        <button class="view-pill" data-view="hbar">
+          <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="8" height="3"/><rect x="1" y="6" width="11" height="3"/><rect x="1" y="11" width="5" height="3"/></svg>H-Bar</button>
+        <button class="view-pill" data-view="stacked">
+          <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="9" width="3" height="6" opacity=".5"/><rect x="1" y="5" width="3" height="4"/><rect x="6" y="6" width="3" height="9" opacity=".5"/><rect x="6" y="2" width="3" height="4"/></svg>Stacked</button>
+        <button class="view-pill" data-view="line">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,13 5,7 9,10 14,3"/></svg>Line</button>
+        <button class="view-pill" data-view="area">
+          <svg viewBox="0 0 16 16" fill="currentColor" opacity=".85"><polygon points="1,15 1,9 5,5 9,8 14,2 15,2 15,15"/></svg>Area</button>
+        <button class="view-pill" data-view="pie">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 2v4l3.5 2A4 4 0 018 4z" opacity=".6"/><circle cx="8" cy="8" r="2"/></svg>Pie</button>
+        <button class="view-pill" data-view="scatter">
+          <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="12" r="1.5"/><circle cx="7" cy="7" r="1.5"/><circle cx="11" cy="4" r="1.5"/><circle cx="13" cy="9" r="1.5"/></svg>Scatter</button>
+      </div>
+
+      <div class="t-divider"></div>
+      {% if can_create %}
+      <button class="btn btn-primary btn-sm" id="manual-save-btn" style="margin-left:2px;">
+        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+        Save</button>
+      {% endif %}
+      <button class="clear-btn" id="undo-btn" title="Undo last change">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" width="10" height="10"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>Undo</button>
+      <button class="clear-btn" id="clear-rows-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>Rows</button>
+      <button class="clear-btn" id="clear-cols-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>Cols</button>
+      <button class="clear-btn" id="reset-btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Reset</button>
+
+      <div class="autosave" id="autosave">
+        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+        <span id="autosave-text">Saved</span>
+      </div>
     </div>
-    {% else %}
-    <div class="relative" style="height: 360px;">
-      <canvas id="main-chart"></canvas>
+
+    <!-- Body -->
+    <div class="pivot-body">
+
+      <!-- Col 1: Fields panel (full height) -->
+      <div class="fields-panel" id="fields-panel">
+        <span class="zone-title">Fields</span>
+        <div class="fields-list" id="fields-list"></div>
+      </div>
+
+      <!-- Col 2 top: Columns zone -->
+      <div class="cols-zone-wrap">
+        <div class="drop-zone zone-cols" id="zone-cols" data-zone="cols">
+          <span class="zone-drop-label">↔ Columns</span>
+          <div class="pills-wrap" id="cols-pills"></div>
+          <span class="drop-hint" id="cols-hint">Drop fields here</span>
+        </div>
+      </div>
+
+      <!-- Col 2 bottom: Rows zone + Output -->
+      <div class="data-row">
+        <div class="rows-zone-wrap">
+          <div class="drop-zone zone-rows" id="zone-rows" data-zone="rows">
+            <span class="zone-drop-label">↕ Rows</span>
+            <div class="pills-wrap" id="rows-pills"></div>
+            <span class="drop-hint" id="rows-hint">Drop fields here</span>
+          </div>
+        </div>
+        <div class="output-panel" id="output-panel">
+          <div id="table-wrap"></div>
+          <div id="chart-wrap"><canvas id="chart-canvas"></canvas></div>
+        </div>
+      </div>
+
     </div>
-    {% endif %}
   </div>
 
+</div><!-- .rpt-page -->
+
+<!-- Toast -->
+<div id="toast">
+  <span id="toast-msg">Done</span>
+  <button id="toast-undo">Undo</button>
 </div>
 
 <script>
-const CHART_TYPE   = {{ chart_type | tojson }};
-const CHART_DATA   = {{ chart_data_json | safe }};
-const REFRESH_URL  = "{{ url_for('reports.chart_data', report_id=report.id) }}";
+const DATA         = {{ pivot_rows_json | safe }};
+const SAVED_CFG    = {{ saved_pivot_config | safe }};
+const SAVE_URL     = "{{ url_for('reports.save_layout', report_id=report.id) }}";
+const REPORT_TITLE = {{ report.title | tojson }};
+const SESSION_KEY  = "pvt_{{ report.id }}";
+const CAN_SAVE     = {{ 'true' if can_create else 'false' }};
 
-let chartInstance = null;
+const META_FIELDS = new Set(['submitted_at','submitter_name','submitter_email','submitter_id','submission_id','created_at','updated_at','id']);
+const FORM_FIELDS  = {{ form_fields_json | safe }};
+const SYSTEM_FIELDS = ['ticket_id', 'status', 'priority'];
+const allFields = [
+  ...SYSTEM_FIELDS,
+  ...FORM_FIELDS.map(f => f.label).filter(l => !SYSTEM_FIELDS.includes(l))
+];
 
-function renderChart(data) {
-  document.getElementById('total-label').textContent =
-    data.total + ' submission' + (data.total !== 1 ? 's' : '');
+/* ── Session: persists rows/cols/agg/view across date-range reloads ── */
+function loadSession() { try { const s = sessionStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null; } catch(e) { return null; } }
+function saveSession(s) { try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e) {} }
+function clearSession() { try { sessionStorage.removeItem(SESSION_KEY); } catch(e) {} }
 
-  if (CHART_TYPE === 'table') {
-    renderTable(data);
+/* On every page load, session takes precedence over server-saved config,
+   so pivot layout survives date-range navigation */
+const base = loadSession() || SAVED_CFG || {};
+let state = {
+  rows:    base.rows    || [],
+  cols:    base.cols    || [],
+  agg:     base.aggregator || 'count',
+  view:    base.renderer   || 'table',
+  filters: base.filters    || {}   /* { fieldName: Set of excluded values } stored as arrays */
+};
+/* Restore filter sets from arrays (JSON doesn't support Set) */
+Object.keys(state.filters).forEach(f => {
+  if (Array.isArray(state.filters[f])) state.filters[f] = new Set(state.filters[f]);
+});
+
+function stateForStorage() {
+  const filters = {};
+  Object.keys(state.filters).forEach(f => {
+    if (state.filters[f] instanceof Set && state.filters[f].size > 0)
+      filters[f] = [...state.filters[f]];
+  });
+  return { rows: state.rows, cols: state.cols, aggregator: state.agg, renderer: state.view, filters };
+}
+
+/* Save synchronously before any navigation (date range change etc.) */
+window.addEventListener('pagehide', () => saveSession(stateForStorage()));
+
+/* ── Undo stack ──────────────────────────────────────────────────────── */
+const undoStack = [];
+function pushUndo() {
+  undoStack.push(JSON.parse(JSON.stringify(stateForStorage())));
+  if (undoStack.length > 60) undoStack.shift();
+  updateUndoBtn();
+}
+function undo() {
+  if (!undoStack.length) return;
+  const prev = undoStack.pop();
+  state.rows = prev.rows || [];
+  state.cols = prev.cols || [];
+  state.agg  = prev.aggregator || 'count';
+  state.view = prev.renderer || 'table';
+  state.filters = {};
+  Object.keys(prev.filters || {}).forEach(f => {
+    state.filters[f] = new Set(prev.filters[f] || []);
+  });
+  renderAll(); scheduleAutoSave();
+  updateUndoBtn();
+  showToast('Change undone', false);
+}
+function updateUndoBtn() {
+  const btn = document.getElementById('undo-btn');
+  btn.disabled = undoStack.length === 0;
+  btn.style.opacity = undoStack.length === 0 ? '0.4' : '1';
+  btn.style.cursor  = undoStack.length === 0 ? 'not-allowed' : 'pointer';
+}
+
+/* ── Toast ─────────────────────────────────────────────────────────── */
+let toastTimer;
+function showToast(msg, showUndo=true) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  document.getElementById('toast-undo').style.display = showUndo ? '' : 'none';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+document.getElementById('toast-undo').onclick = () => { document.getElementById('toast').classList.remove('show'); undo(); };
+
+/* ── Autosave ──────────────────────────────────────────────────────── */
+const autosaveEl  = document.getElementById('autosave');
+const autosaveTxt = document.getElementById('autosave-text');
+let saveTimer;
+function scheduleAutoSave() {
+  saveSession(stateForStorage());
+  if (!CAN_SAVE) return;
+  clearTimeout(saveTimer);
+  autosaveEl.className = 'autosave saving';
+  autosaveTxt.textContent = 'Saving…';
+  saveTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(SAVE_URL, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(stateForStorage()) });
+      if (r.ok) {
+        clearSession();
+        autosaveEl.className = 'autosave saved'; autosaveTxt.textContent = 'Saved';
+        setTimeout(() => { autosaveEl.className = 'autosave'; }, 2500);
+      } else {
+        autosaveEl.className = 'autosave error'; autosaveTxt.textContent = 'Save failed';
+        setTimeout(() => { autosaveEl.className = 'autosave'; }, 3000);
+      }
+    } catch(e) { autosaveEl.className = 'autosave'; }
+  }, 700);
+}
+
+/* ── Filtering helpers ─────────────────────────────────────────────── */
+function getFieldValues(field) {
+  return [...new Set(DATA.map(r => String(r[field] ?? '')))].sort((a,b) =>
+    isNaN(a)||isNaN(b) ? a.localeCompare(b) : +a - +b);
+}
+function isExcluded(field, val) {
+  return state.filters[field] instanceof Set && state.filters[field].has(val);
+}
+function filteredData() {
+  return DATA.filter(row =>
+    Object.keys(state.filters).every(f => {
+      if (!(state.filters[f] instanceof Set) || state.filters[f].size === 0) return true;
+      return !state.filters[f].has(String(row[f] ?? ''));
+    })
+  );
+}
+
+/* ── Filter popup ──────────────────────────────────────────────────── */
+let activePopup = null;
+function openFilterPopup(field, anchorEl) {
+  closeFilterPopup();
+  const values = getFieldValues(field);
+  const excluded = state.filters[field] instanceof Set ? new Set(state.filters[field]) : new Set();
+  const popup = document.createElement('div');
+  popup.className = 'filter-popup';
+  popup.innerHTML = `
+    <div class="fp-header">
+      <span class="fp-title">Filter: ${field}</span>
+      <button onclick="closeFilterPopup()" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;line-height:1;padding:0">&times;</button>
+    </div>
+    <input class="fp-search" placeholder="Search values…" id="fp-search-input">
+    <div class="fp-list" id="fp-list"></div>
+    <div class="fp-footer">
+      <button id="fp-all">All</button>
+      <button id="fp-none">None</button>
+      <button class="fp-apply" id="fp-apply">Apply</button>
+    </div>`;
+  document.body.appendChild(popup);
+  activePopup = popup;
+
+  /* working copy of exclusion set */
+  let working = new Set(excluded);
+
+  function renderList(filter='') {
+    const list = popup.querySelector('#fp-list');
+    list.innerHTML = '';
+    values.filter(v => v.toLowerCase().includes(filter.toLowerCase())).forEach(v => {
+      const item = document.createElement('label');
+      item.className = 'fp-item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !working.has(v);
+      cb.addEventListener('change', () => { if (cb.checked) working.delete(v); else working.add(v); });
+      const lbl = document.createElement('span');
+      lbl.textContent = v || '(empty)'; lbl.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:12px;';
+      item.appendChild(cb); item.appendChild(lbl);
+      list.appendChild(item);
+    });
+  }
+  renderList();
+
+  popup.querySelector('#fp-search-input').addEventListener('input', e => renderList(e.target.value));
+  popup.querySelector('#fp-all').addEventListener('click', () => {
+    working.clear();
+    popup.querySelectorAll('#fp-list input[type=checkbox]').forEach(c=>c.checked=true);
+  });
+  popup.querySelector('#fp-none').addEventListener('click', () => {
+    values.forEach(v => working.add(v));
+    popup.querySelectorAll('#fp-list input[type=checkbox]').forEach(c=>c.checked=false);
+  });
+  popup.querySelector('#fp-apply').addEventListener('click', () => {
+    pushUndo();
+    state.filters[field] = working.size > 0 ? working : new Set();
+    renderAll(); scheduleAutoSave(); closeFilterPopup();
+  });
+
+  /* Position popup near anchor */
+  const rect = anchorEl.getBoundingClientRect();
+  const top  = Math.min(rect.bottom + 6, window.innerHeight - 300);
+  const left = Math.max(4, Math.min(rect.left, window.innerWidth - 230));
+  popup.style.cssText += `;top:${top + window.scrollY}px;left:${left}px;`;
+
+  /* Close on outside click */
+  setTimeout(() => {
+    document.addEventListener('click', outsideClick);
+  }, 10);
+  function outsideClick(e) {
+    if (!popup.contains(e.target) && e.target !== anchorEl) {
+      closeFilterPopup();
+      document.removeEventListener('click', outsideClick);
+    }
+  }
+}
+function closeFilterPopup() {
+  if (activePopup) { activePopup.remove(); activePopup = null; }
+}
+
+/* ── Aggregation logic ─────────────────────────────────────────────── */
+function getVal(row, f) { const v = row[f]; return v===null||v===undefined ? '' : v; }
+
+function aggregateData() {
+  if (!state.rows.length && !state.cols.length) return null;
+  const fd = filteredData();
+  const uniq = arr => [...new Set(arr)].sort((a,b) => isNaN(a)||isNaN(b) ? String(a).localeCompare(String(b)) : +a - +b);
+  const rowVals = state.rows.map(f => uniq(fd.map(r => String(getVal(r,f)))));
+  const colVals = state.cols.map(f => uniq(fd.map(r => String(getVal(r,f)))));
+  function combos(vals) { if (!vals.length) return [[]]; const rest=combos(vals.slice(1)); return vals[0].flatMap(v=>rest.map(r=>[v,...r])); }
+  const rowCombos = combos(rowVals), colCombos = combos(colVals);
+  const buckets = {};
+  function bkey(rk,ck) { return JSON.stringify([rk,ck]); }
+  fd.forEach(row => {
+    const rk=state.rows.map(f=>String(getVal(row,f))), ck=state.cols.map(f=>String(getVal(row,f)));
+    const k=bkey(rk,ck); if(!buckets[k]) buckets[k]=[]; buckets[k].push(row);
+  });
+  function compute(rows) {
+    if (!rows||!rows.length) return (state.agg==='count'||state.agg==='count_unique') ? 0 : null;
+    if (state.agg==='count') return rows.length;
+    if (state.agg==='count_unique') return new Set(rows.flatMap(r=>Object.values(r).map(String))).size;
+    const numF = allFields.find(f => !state.rows.includes(f) && !state.cols.includes(f) && rows.some(r=>!isNaN(parseFloat(r[f]))));
+    if (!numF) return rows.length;
+    const nums = rows.map(r=>parseFloat(r[numF])).filter(n=>!isNaN(n));
+    if (!nums.length) return null;
+    if (state.agg==='sum') return +nums.reduce((a,b)=>a+b,0).toFixed(2);
+    if (state.agg==='avg') return +(nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(2);
+    if (state.agg==='min') return Math.min(...nums);
+    if (state.agg==='max') return Math.max(...nums);
+  }
+  const rowTotals = rowCombos.map(rk => compute(fd.filter(row=>state.rows.every((f,i)=>String(getVal(row,f))===rk[i]))));
+  const colTotals = colCombos.map(ck => compute(fd.filter(row=>state.cols.every((f,i)=>String(getVal(row,f))===ck[i]))));
+  const grandTotal = compute(fd);
+  return { rowCombos, colCombos, buckets, compute, bkey, rowTotals, colTotals, grandTotal };
+}
+
+/* ── Table rendering ───────────────────────────────────────────────── */
+function renderTable() {
+  const wrap = document.getElementById('table-wrap');
+  if (!state.rows.length && !state.cols.length) {
+    wrap.innerHTML = '<div class="output-empty"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 6h18M3 14h11m-7 4h4"/></svg><p>Drag fields into <strong>Rows</strong> or <strong>Columns</strong> to build your pivot table.</p></div>';
     return;
   }
+  const d = aggregateData(); if (!d) { wrap.innerHTML=''; return; }
+  const { rowCombos, colCombos, buckets, compute, bkey, rowTotals, colTotals, grandTotal } = d;
+  const hasCols = colCombos[0].length > 0, hasRows = rowCombos[0].length > 0;
+  let h = '<table class="pvt-table"><thead>';
+  if (hasCols) {
+    state.cols.forEach((cf,ci) => {
+      h += '<tr>';
+      if (hasRows) h += '<th class="t-label" colspan="'+state.rows.length+'"></th>';
+      const lbls = colCombos.map(ck=>ck[ci]);
+      let prev=null, span=0;
+      lbls.forEach((lbl,i)=>{
+        if(lbl===prev){span++;}else{if(prev!==null)h+='<th colspan="'+span+'">'+prev+'</th>';prev=lbl;span=1;}
+        if(i===lbls.length-1)h+='<th colspan="'+span+'">'+prev+'</th>';
+      });
+      h += '<th class="t-label">Totals</th></tr>';
+    });
+  }
+  h += '</thead><tbody>';
+  if (!hasRows) {
+    h += '<tr>';
+    if (hasCols) colCombos.forEach(ck=>{ const v=compute(buckets[bkey([],ck)]); h+='<td class="val">'+(v!==null?v:'')+'</td>'; });
+    else h += '<td class="val">'+compute(filteredData())+'</td>';
+    h += '<td class="t-val">'+grandTotal+'</td></tr>';
+  } else {
+    const fd = filteredData();
+    rowCombos.forEach((rk,ri) => {
+      h += '<tr>';
+      rk.forEach((rv,rli)=>{
+        if(rli<rk.length-1){ const prev=ri>0?rowCombos[ri-1]:null; if(prev&&prev[rli]===rv){h+='<td></td>';return;} }
+        h += '<th>'+rv+'</th>';
+      });
+      if (hasCols) colCombos.forEach(ck=>{ const v=compute(buckets[bkey(rk,ck)]); h+='<td class="val">'+(v!==null?v:'')+'</td>'; });
+      else { const v=compute(buckets[bkey(rk,[])]); h+='<td class="val">'+(v!==null?v:'')+'</td>'; }
+      h += '<td class="t-val">'+rowTotals[ri]+'</td></tr>';
+    });
+    h += '<tr><th class="t-label" colspan="'+state.rows.length+'">Totals</th>';
+    if (hasCols) colTotals.forEach(v=>{ h+='<td class="t-val">'+v+'</td>'; });
+    else h += '<td class="t-val">'+grandTotal+'</td>';
+    h += '<td class="grand">'+grandTotal+'</td></tr>';
+  }
+  h += '</tbody></table>';
+  wrap.innerHTML = h;
+}
 
-  const ctx = document.getElementById('main-chart').getContext('2d');
-  if (chartInstance) chartInstance.destroy();
+/* ── Chart rendering ───────────────────────────────────────────────── */
+let chartInstance = null;
+const palette = ['#0b0380','#6366f1','#059669','#f59e0b','#dc2626','#8b5cf6','#0ea5e9','#10b981','#ec4899','#78716c'];
 
-  const isBar  = CHART_TYPE === 'bar';
-  const isLine = CHART_TYPE === 'line';
-  const isPie  = CHART_TYPE === 'pie';
+function renderChart() {
+  const wrap = document.getElementById('chart-wrap');
+  if (!state.rows.length && !state.cols.length) {
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    wrap.innerHTML = '<p class="output-empty">Drag fields into Rows or Columns to build a chart.</p>';
+    return;
+  }
+  const d = aggregateData(); if (!d) return;
+  const { rowCombos, colCombos, buckets, compute, bkey } = d;
+  const labels   = rowCombos.map(rk => rk.join(' / ') || 'All');
+  const isPie     = state.view === 'pie';
+  const isHBar    = state.view === 'hbar';
+  const isStacked = state.view === 'stacked';
+  const isArea    = state.view === 'area';
+  const isScatter = state.view === 'scatter';
 
-  const datasets = [{
-    data:            data.values,
-    backgroundColor: isPie ? data.colors : data.colors.map(c => c + '22'),
-    borderColor:     data.colors,
-    borderWidth:     isPie ? 0 : 2,
-    borderRadius:    isBar ? 6 : 0,
-    tension:         0.35,
-    fill:            isLine,
-    pointRadius:     isLine ? 4 : 0,
-    pointHoverRadius: isLine ? 6 : 0,
-  }];
+  let datasets;
+  /* Pie always uses a single flattened dataset regardless of cols.
+     Scatter and other chart types use cols as series when present. */
+  if (isPie || isScatter) {
+    /* For pie: sum across all col combos per row combo so every row = one slice */
+    const vals = rowCombos.map(rk => {
+      if (colCombos[0].length) {
+        return colCombos.reduce((sum, ck) => sum + (compute(buckets[bkey(rk,ck)]) ?? 0), 0);
+      }
+      return compute(buckets[bkey(rk,[])]) ?? 0;
+    });
+    if (isScatter) {
+      /* Scatter: pair each label index with its value; skip nulls */
+      const points = vals.map((y,x) => ({ x, y: y ?? 0 }));
+      datasets = [{ label: 'Values', data: points,
+        backgroundColor: palette[0]+'99', borderColor: palette[0], borderWidth: 2, pointRadius: 6 }];
+    } else {
+      /* Pie */
+      datasets = [{ label: state.agg.charAt(0).toUpperCase()+state.agg.slice(1), data: vals,
+        backgroundColor: palette.map(p => p+'cc'),
+        borderColor: palette,
+        borderWidth: 2 }];
+    }
+  } else if (colCombos[0].length) {
+    datasets = colCombos.map((ck,i) => ({
+      label: ck.join(' / '),
+      data: rowCombos.map(rk => compute(buckets[bkey(rk,ck)]) ?? 0),
+      backgroundColor: palette[i%palette.length]+'bb',
+      borderColor: palette[i%palette.length],
+      borderWidth: 2, fill: isArea, tension: 0.35,
+      stack: isStacked ? 'stack' : undefined
+    }));
+  } else {
+    const vals = rowCombos.map(rk => compute(buckets[bkey(rk,[])]) ?? 0);
+    datasets = [{ label: state.agg.charAt(0).toUpperCase()+state.agg.slice(1), data: vals,
+      backgroundColor: palette[0]+'bb',
+      borderColor: palette[0],
+      borderWidth: 2, fill: isArea, tension: 0.35 }];
+  }
 
-  chartInstance = new Chart(ctx, {
-    type: CHART_TYPE,
-    data: { labels: data.labels, datasets },
+  const typeMap = { bar:'bar', hbar:'bar', stacked:'bar', line:'line', area:'line', pie:'pie', scatter:'scatter' };
+
+  /* Destroy old instance then recreate canvas — prevents "already in use" error */
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  wrap.innerHTML = '<canvas id="chart-canvas" style="max-width:100%;display:block;"></canvas>';
+  const canvas = document.getElementById('chart-canvas');
+
+  /* Scatter uses its own x/y scale config; pie needs no scales at all */
+  const scalesConfig = isPie ? {} : isScatter ? {
+    x: { type:'linear', position:'bottom', grid:{ color:'rgba(0,0,0,.04)' }, ticks:{ font:{ size:11 } } },
+    y: { beginAtZero:true, grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ font:{ size:11 } } }
+  } : {
+    x: { stacked: isStacked, grid:{ color:'rgba(0,0,0,.04)' }, ticks:{ font:{ size:11 } } },
+    y: { stacked: isStacked, beginAtZero:true, grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ font:{ size:11 } } }
+  };
+
+  chartInstance = new Chart(canvas, {
+    type: typeMap[state.view],
+    data: { labels, datasets },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
+      indexAxis: isHBar ? 'y' : 'x',
       plugins: {
-        legend: {
-          display: isPie,
-          position: 'right',
-          labels: { font: { size: 12 }, padding: 16 },
-        },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              const pct = data.total ? ((ctx.parsed.y ?? ctx.parsed) / data.total * 100).toFixed(1) : 0;
-              const val = ctx.parsed.y ?? ctx.parsed;
-              return ` ${val} (${pct}%)`;
-            }
-          }
-        }
+        legend: { display: datasets.length>1 || isPie, position:'top' },
+        tooltip: { callbacks: { label: ctx => ' '+ctx.dataset.label+': '+ctx.formattedValue } }
       },
-      scales: isPie ? {} : {
-        x: { grid: { display: false }, ticks: { font: { size: 12 } } },
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0, font: { size: 12 } },
-          grid: { color: '#f0f0ec' },
-        }
-      },
+      scales: scalesConfig
     }
   });
 }
 
-function renderTable(data) {
-  const tbody = document.getElementById('table-body');
-  if (!tbody) return;
-  const total = data.total || 1;
-  tbody.innerHTML = data.labels.map((label, i) => {
-    const count = data.values[i];
-    const pct   = (count / total * 100).toFixed(1);
-    return `
-      <tr>
-        <td class="py-3 pr-4 text-ink">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${data.colors[i]}"></span>
-            ${label}
-          </div>
-        </td>
-        <td class="py-3 text-right font-mono font-medium text-ink">${count}</td>
-        <td class="py-3 text-right text-muted pl-4">
-          <div class="flex items-center justify-end gap-2">
-            <div class="w-20 bg-faint rounded-full h-1.5 overflow-hidden">
-              <div class="h-full rounded-full" style="width:${pct}%;background:${data.colors[i]}"></div>
-            </div>
-            ${pct}%
-          </div>
-        </td>
-      </tr>`;
-  }).join('');
+/* ── Output routing ────────────────────────────────────────────────── */
+function renderOutput() {
+  const tw = document.getElementById('table-wrap');
+  const cw = document.getElementById('chart-wrap');
+  if (state.view === 'table') {
+    tw.style.display = 'block';
+    cw.style.display = 'none';
+    renderTable();
+  } else {
+    tw.style.display = 'none';
+    cw.style.display = 'block';
+    renderChart();
+  }
 }
 
-// Initial render
-renderChart(CHART_DATA);
+/* ── Fields / pills ────────────────────────────────────────────────── */
+function hasActiveFilter(field) {
+  return state.filters[field] instanceof Set && state.filters[field].size > 0;
+}
 
-// Refresh
-document.getElementById('refresh-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('refresh-btn');
-  btn.disabled = true;
-  btn.textContent = 'Refreshing…';
-  try {
-    const resp = await fetch(REFRESH_URL);
-    const data = await resp.json();
-    renderChart(data);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-      </svg>
-      Refresh`;
+function renderFields() {
+  const list = document.getElementById('fields-list');
+  const used = new Set([...state.rows, ...state.cols]);
+  list.innerHTML = '';
+  allFields.forEach(f => { if (!used.has(f)) list.appendChild(makePill(f, 'field')); });
+}
+function renderZone(zone) {
+  const ids  = zone==='rows' ? state.rows : state.cols;
+  const el   = document.getElementById(zone+'-pills');
+  const hint = document.getElementById(zone+'-hint');
+  el.innerHTML = '';
+  ids.forEach(f => el.appendChild(makePill(f, zone)));
+  hint.style.display = ids.length ? 'none' : '';
+}
+function renderAll() { renderFields(); renderZone('rows'); renderZone('cols'); renderOutput(); syncToolbar(); updateUndoBtn(); }
+
+function makePill(field, source) {
+  const wrap = document.createElement('div');
+  const filtered = hasActiveFilter(field);
+  wrap.className = 'pill' + (source==='field' ? ' field-pill' : '') + (filtered ? ' filtered' : '');
+  wrap.draggable = true;
+  wrap.dataset.field = field;
+  wrap.dataset.source = source;
+
+  const txt = document.createElement('span');
+  txt.className = 'pill-text'; txt.textContent = field; txt.title = field;
+  wrap.appendChild(txt);
+
+  /* Filter icon button — shown on all pills */
+  const filt = document.createElement('button');
+  filt.className = 'pill-filter';
+  filt.title = filtered ? 'Edit filter (active)' : 'Filter values';
+  filt.innerHTML = filtered
+    ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h14l-5 6v5l-4-2V9L1 3z"/></svg>'
+    : '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 3h14l-5 6v5l-4-2V9L1 3z"/></svg>';
+  filt.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;padding:0;flex-shrink:0;opacity:0.6;transition:opacity .12s;';
+  filt.addEventListener('mouseenter', () => filt.style.opacity = '1');
+  filt.addEventListener('mouseleave', () => filt.style.opacity = filtered ? '1' : '0.6');
+  if (filtered) filt.style.opacity = '1';
+  filt.addEventListener('click', e => { e.stopPropagation(); openFilterPopup(field, wrap); });
+  wrap.appendChild(filt);
+
+  if (source !== 'field') {
+    const rm = document.createElement('button');
+    rm.className = 'pill-rm'; rm.innerHTML = '&times;'; rm.title = 'Remove';
+    rm.style.cssText = 'flex-shrink:0;';
+    rm.onclick = e => {
+      e.stopPropagation(); pushUndo();
+      if (source==='rows') state.rows = state.rows.filter(f=>f!==field);
+      else state.cols = state.cols.filter(f=>f!==field);
+      renderAll(); scheduleAutoSave();
+    };
+    wrap.appendChild(rm);
+  }
+
+  wrap.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', JSON.stringify({field,source})); wrap.classList.add('dragging'); });
+  wrap.addEventListener('dragend',   () => wrap.classList.remove('dragging'));
+  return wrap;
+}
+
+/* ── Drop zones ────────────────────────────────────────────────────── */
+function setupDrop(el, zone) {
+  el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('drag-over'); });
+  el.addEventListener('dragleave', ()  => el.classList.remove('drag-over'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('drag-over');
+    const { field, source } = JSON.parse(e.dataTransfer.getData('text/plain'));
+    pushUndo();
+    if (source==='rows') state.rows = state.rows.filter(f=>f!==field);
+    else if (source==='cols') state.cols = state.cols.filter(f=>f!==field);
+    if (zone==='rows' && !state.rows.includes(field)) state.rows.push(field);
+    else if (zone==='cols' && !state.cols.includes(field)) state.cols.push(field);
+    renderAll(); scheduleAutoSave();
+  });
+}
+
+const fieldsPanel = document.getElementById('fields-panel');
+fieldsPanel.addEventListener('dragover', e => e.preventDefault());
+fieldsPanel.addEventListener('drop', e => {
+  e.preventDefault();
+  const { field, source } = JSON.parse(e.dataTransfer.getData('text/plain'));
+  if (source==='field') return;
+  pushUndo();
+  if (source==='rows') state.rows = state.rows.filter(f=>f!==field);
+  else if (source==='cols') state.cols = state.cols.filter(f=>f!==field);
+  renderAll(); scheduleAutoSave();
+});
+
+setupDrop(document.getElementById('zone-rows'), 'rows');
+setupDrop(document.getElementById('zone-cols'), 'cols');
+
+/* ── Toolbar controls ──────────────────────────────────────────────── */
+function syncToolbar() {
+  document.getElementById('agg-select').value = state.agg;
+  document.querySelectorAll('.view-pill').forEach(p => p.classList.toggle('active', p.dataset.view===state.view));
+}
+document.getElementById('agg-select').addEventListener('change', e => {
+  pushUndo(); state.agg = e.target.value; renderOutput(); scheduleAutoSave();
+});
+document.querySelectorAll('.view-pill').forEach(p => {
+  p.addEventListener('click', () => { pushUndo(); state.view = p.dataset.view; renderAll(); scheduleAutoSave(); });
+});
+document.getElementById('clear-rows-btn').addEventListener('click', () => {
+  pushUndo(); state.rows=[]; renderAll(); scheduleAutoSave(); showToast('Rows cleared');
+});
+document.getElementById('clear-cols-btn').addEventListener('click', () => {
+  pushUndo(); state.cols=[]; renderAll(); scheduleAutoSave(); showToast('Columns cleared');
+});
+document.getElementById('reset-btn').addEventListener('click', () => {
+  pushUndo(); state.rows=[]; state.cols=[]; state.agg='count'; state.view='table'; state.filters={};
+  renderAll(); scheduleAutoSave(); showToast('Reset to defaults');
+});
+document.getElementById('undo-btn').addEventListener('click', undo);
+
+/* ── Manual save ───────────────────────────────────────────────────── */
+const manualSaveBtn = document.getElementById('manual-save-btn');
+if (manualSaveBtn) {
+  manualSaveBtn.addEventListener('click', async () => {
+    manualSaveBtn.disabled = true;
+    manualSaveBtn.textContent = 'Saving…';
+    try {
+      const r = await fetch(SAVE_URL, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(stateForStorage()) });
+      if (r.ok) {
+        clearSession();
+        manualSaveBtn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Saved!';
+        showToast('Layout saved', false);
+        setTimeout(() => {
+          manualSaveBtn.disabled = false;
+          manualSaveBtn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg> Save';
+        }, 2000);
+      } else {
+        throw new Error('Save failed');
+      }
+    } catch(e) {
+      manualSaveBtn.textContent = 'Failed';
+      manualSaveBtn.style.background = '#dc2626';
+      setTimeout(() => {
+        manualSaveBtn.disabled = false;
+        manualSaveBtn.style.background = '';
+        manualSaveBtn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg> Save';
+      }, 2500);
+    }
+  });
+}
+
+/* ── Date picker ───────────────────────────────────────────────────── */
+const dateBtn   = document.getElementById('date-btn');
+const datePanel = document.getElementById('date-panel');
+dateBtn.addEventListener('click', e => { e.stopPropagation(); datePanel.classList.toggle('open'); });
+document.addEventListener('click', e => {
+  if (!dateBtn.closest('.date-wrapper').contains(e.target)) datePanel.classList.remove('open');
+});
+
+async function applyPreset(preset, from='', to='') {
+  /* Persist to server before navigating so the layout survives the reload.
+     Fall back to sessionStorage if the server save fails. */
+  saveSession(stateForStorage());
+  if (CAN_SAVE) {
+    try {
+      await fetch(SAVE_URL, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(stateForStorage()) });
+    } catch(e) { /* session fallback already set */ }
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set('date_range', preset);
+  if (preset==='custom') { url.searchParams.set('date_from', from); url.searchParams.set('date_to', to); }
+  else { url.searchParams.delete('date_from'); url.searchParams.delete('date_to'); }
+  window.location.href = url.toString();
+}
+
+document.querySelectorAll('.dp-opt').forEach(el => {
+  el.addEventListener('click', () => {
+    if (el.dataset.preset === 'custom') {
+      document.getElementById('dp-custom').classList.add('open');
+      document.querySelectorAll('.dp-opt').forEach(d => d.classList.remove('active'));
+      el.classList.add('active');
+    } else {
+      applyPreset(el.dataset.preset);
+    }
+  });
+});
+document.getElementById('apply-custom').addEventListener('click', () => {
+  const f = document.getElementById('date-from').value;
+  const t = document.getElementById('date-to').value;
+  if (f||t) applyPreset('custom', f, t);
+});
+
+/* ── Exports ───────────────────────────────────────────────────────── */
+function tableToAoA() {
+  const t = document.querySelector('.pvt-table');
+  if (!t) return null;
+  return [...t.querySelectorAll('tr')].map(tr => [...tr.querySelectorAll('th,td')].map(c => c.textContent.trim()));
+}
+function dlBlob(mime, name, content) {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([content],{type:mime})), download:name });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+document.getElementById('exp-csv').addEventListener('click', () => {
+  if (!DATA.length) return alert('No data.');
+  const keys = Object.keys(DATA[0]);
+  dlBlob('text/csv', REPORT_TITLE+'.csv',
+    [keys.join(','), ...DATA.map(r=>keys.map(k=>'"'+String(r[k]||'').replace(/"/g,'""')+'"').join(','))].join('\n'));
+});
+document.getElementById('exp-xlsx').addEventListener('click', () => {
+  const aoa = tableToAoA() || DATA.map(r=>Object.values(r));
+  const ws=XLSX.utils.aoa_to_sheet(aoa), wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Report'); XLSX.writeFile(wb, REPORT_TITLE+'.xlsx');
+});
+document.getElementById('exp-pdf').addEventListener('click', async () => {
+  const { jsPDF } = window.jspdf;
+  const canvas = await html2canvas(document.getElementById('pivot-card'),{scale:2,useCORS:true});
+  const pdf = new jsPDF({orientation:'landscape',unit:'px',format:[canvas.width/2,canvas.height/2]});
+  pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,canvas.width/2,canvas.height/2);
+  pdf.save(REPORT_TITLE+'.pdf');
+});
+document.getElementById('exp-png').addEventListener('click', async () => {
+  const canvas = await html2canvas(document.getElementById('pivot-card'),{scale:2,useCORS:true});
+  Object.assign(document.createElement('a'),{href:canvas.toDataURL('image/png'),download:REPORT_TITLE+'.png'}).click();
+});
+
+/* ── Delete modal ──────────────────────────────────────────────────── */
+document.addEventListener('click', e => {
+  if (e.target.closest('.del-btn')) {
+    document.getElementById('del-modal').style.display = 'flex';
   }
 });
+const delCancel = document.getElementById('del-cancel');
+if (delCancel) {
+  delCancel.addEventListener('click', () => {
+    document.getElementById('del-modal').style.display = 'none';
+  });
+}
+document.getElementById('del-modal')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('del-modal'))
+    document.getElementById('del-modal').style.display = 'none';
+});
+
+/* ── Init ──────────────────────────────────────────────────────────── */
+renderAll();
 </script>
 {% endblock %}
