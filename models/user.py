@@ -3,6 +3,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import secrets
+from sqlalchemy.orm.attributes import flag_modified
 
 
 class User(UserMixin, db.Model):
@@ -48,6 +49,7 @@ class User(UserMixin, db.Model):
         current = dict(self.column_prefs or {})
         current[form_slug] = prefs
         self.column_prefs = current
+        flag_modified(self, "column_prefs")
 
     def generate_reset_token(self):
         from datetime import timedelta

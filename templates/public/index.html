@@ -143,10 +143,6 @@
                   {% set has_wildcard  = not allowed_types or '*' in allowed_types %}
                   {% set accept_str    = allowed_types | reject('equalto', '*') | join(',') if not has_wildcard else '' %}
 
-                  <input type="file" id="real-input-{{ field.id }}" name="{{ field.id }}"
-                    {% if field.required %}required{% endif %}
-                    multiple {% if accept_str %}accept="{{ accept_str }}"{% endif %} class="sr-only">
-
                   <div class="space-y-2">
                     <div id="dropzone-{{ field.id }}"
                          class="flex items-center w-full rounded-xl border border-gray-200 bg-gray-50 overflow-hidden cursor-pointer hover:bg-white transition"
@@ -161,9 +157,15 @@
                     <div id="thumb-strip-{{ field.id }}" class="flex flex-wrap gap-2"></div>
                   </div>
 
-                  <input type="file" id="picker-{{ field.id }}" multiple
-                    {% if accept_str %}accept="{{ accept_str }}"{% endif %} class="sr-only"
-                    onchange="accumulateFiles('{{ field.id }}', this, {{ max_files }}, '{{ size_val }}', '{{ size_unit }}', {{ allowed_types | tojson }})">
+                  <input type="file" id="picker-{{ field.id }}" name="{{ field.id }}" multiple
+                    {% if field.required %}required{% endif %}
+                    {% if accept_str %}accept="{{ accept_str }}"{% endif %}
+                    style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;"
+                    data-field-id="{{ field.id }}"
+                    data-max-files="{{ max_files }}"
+                    data-size-val="{{ size_val }}"
+                    data-size-unit="{{ size_unit }}"
+                    data-allowed-types='{{ allowed_types | tojson }}'>
 
                   {% if allowed_types and not has_wildcard %}
                     {% set type_labels = {
@@ -352,8 +354,8 @@ document.getElementById('publicForm').addEventListener('submit', function(e) {
       }
 
     } else if (ftype === 'file') {
-      const realInput = document.getElementById('real-input-' + fieldId);
-      if (required && (!realInput || realInput.files.length === 0)) {
+      const picker = document.getElementById('picker-' + fieldId);
+      if (required && (!picker || picker.files.length === 0)) {
         error = `${label} is required.`;
       }
     }
@@ -407,7 +409,18 @@ document.getElementById('formGrid').addEventListener('change', function(e) {
 const _dt = {};
 
 function triggerPicker(fieldId) {
-  document.getElementById('picker-' + fieldId).click();
+  const picker = document.getElementById('picker-' + fieldId);
+  if (!picker._wired) {
+    picker.addEventListener('change', function() {
+      const maxF        = parseInt(picker.dataset.maxFiles) || 1;
+      const sizeVal     = picker.dataset.sizeVal || '';
+      const sizeUnit    = picker.dataset.sizeUnit || 'MB';
+      const allowedTypes = JSON.parse(picker.dataset.allowedTypes || '[]');
+      accumulateFiles(fieldId, picker, maxF, sizeVal, sizeUnit, allowedTypes);
+    });
+    picker._wired = true;
+  }
+  picker.click();
 }
 
 function _fileMatchesAllowedTypes(file, allowedTypes) {
@@ -460,8 +473,10 @@ function accumulateFiles(fieldId, picker, maxF, sizeVal, sizeUnit, allowedTypes)
     dt.items.add(f);
   }
 
-  document.getElementById('real-input-' + fieldId).files = dt.files;
   picker.value = '';
+  // Re-assign accumulated files back to the picker (the actual form input)
+  const newDt = _dt[fieldId];
+  if (newDt) { try { picker.files = newDt.files; } catch(e) {} }
   renderStrip(fieldId, dt.files);
 }
 
@@ -471,7 +486,8 @@ function removeFile(fieldId, idx) {
   const fresh = new DataTransfer();
   Array.from(dt.files).forEach((f, i) => { if (i !== idx) fresh.items.add(f); });
   _dt[fieldId] = fresh;
-  document.getElementById('real-input-' + fieldId).files = fresh.files;
+  const pickerEl = document.getElementById('picker-' + fieldId);
+  if (pickerEl) { try { pickerEl.files = fresh.files; } catch(e) {} }
   renderStrip(fieldId, fresh.files);
 }
 
@@ -583,7 +599,7 @@ function clearFieldWrap(wrap) {
   wrap.querySelectorAll('input[type=radio], input[type=checkbox]').forEach(r => { r.checked = false; });
   wrap.querySelectorAll('input[type=file]').forEach(fi => {
     try { fi.value = ''; } catch (e) {}
-    const fieldId = fi.id.replace('real-input-', '');
+    const fieldId = fi.id.replace('picker-', '');
     if (_dt[fieldId]) {
       _dt[fieldId] = new DataTransfer();
       fi.files = _dt[fieldId].files;

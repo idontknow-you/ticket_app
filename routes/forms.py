@@ -86,9 +86,9 @@ def get_field_validation_error(field: dict, value, uploaded_files=None) -> str |
     # ── type-specific rules ───────────────────────────────────────────────────
 
     if ftype == "text":
-        # Letters, spaces and hyphens only (names, subjects, etc.)
-        if not re.fullmatch(r"[A-Za-z\s\-]+", str(value)):
-            return f"{label} must contain letters only (no numbers or special characters)."
+        # Basic length sanity check only — text fields can contain anything
+        if len(str(value)) > 500:
+            return f"{label} must be 500 characters or fewer."
 
     elif ftype == "email":
         pattern = r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"

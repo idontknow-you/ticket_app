@@ -6,6 +6,7 @@ from extensions import db
 from datetime import datetime, timezone, timedelta
 from decorators import permission_required
 from utils import to_ist
+from sqlalchemy.orm.attributes import flag_modified
 
 tickets_bp = Blueprint("tickets", __name__, url_prefix="/tickets")
 
@@ -155,7 +156,10 @@ def update(submission_id):
         notes = list(sub.notes or [])
         notes.append(log_entry)
         sub.notes = notes
+        flag_modified(sub, "notes")
 
+    sub.updated_at = datetime.utcnow()
+    flag_modified(sub, "data")
     db.session.commit()
 
     # ── Fire mail events ──────────────────────────────────────────────────────
