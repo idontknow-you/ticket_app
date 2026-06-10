@@ -1,11 +1,12 @@
 import os, uuid
-from flask import Blueprint, render_template, redirect, url_for, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from models import FormConfig, FormSubmission
 from models.wiki_page import WikiPage
 from sqlalchemy import case
 from extensions import db
 from werkzeug.utils import secure_filename
 from models.carousel_item import CarouselItem
+from routes.forms import get_field_validation_error
 
 public_bp = Blueprint("public", __name__)
 
@@ -86,21 +87,75 @@ def submit(slug):
     current_ver = form_config.current_version
     fields      = current_ver.sorted_fields if current_ver else form_config.sorted_fields
 
-    data = {}
+    # ── collect raw values first ───────────────────────────────────────────────
+    raw = {}
     for field in fields:
         fid = field["id"]
         if field["type"] == "checkbox":
-            data[fid] = request.form.getlist(fid)
+            raw[fid] = request.form.getlist(fid)
         elif field["type"] == "file":
-            uploaded_files = request.files.getlist(fid)
-            saved = []
-            for f in uploaded_files:
-                result = _save_upload(f, field)
-                if result:
-                    saved.append(result)
-            data[fid] = saved
+            raw[fid] = request.files.getlist(fid)
         else:
-            data[fid] = request.form.get(fid, "")
+            raw[fid] = request.form.get(fid, "")
+
+    # ── server-side validation ─────────────────────────────────────────────────
+    errors = []
+    for field in fields:
+        fid   = field["id"]
+        ftype = field["type"]
+
+        # Skip fields that are hidden by branching conditions
+        # (client already cleared them, but double-check: if all conditions
+        # have empty parent values, the field was hidden)
+        conditions = field.get("conditions") or []
+        valid_conditions = [c for c in conditions if c.get("field_id") and c.get("value")]
+        if valid_conditions:
+            # Evaluate whether this field should be visible given submitted data
+            def _get_val(fid_):
+                v = raw.get(fid_, "")
+                return v if v != "" else []
+            result = _check_condition(_get_val, valid_conditions[0])
+            for cond in valid_conditions[1:]:
+                op = cond.get("operator", "AND")
+                if op == "OR":
+                    result = result or _check_condition(_get_val, cond)
+                else:
+                    result = result and _check_condition(_get_val, cond)
+            if not result:
+                # Field is hidden — skip validation and clear value
+                raw[fid] = [] if ftype in ("checkbox", "file") else ""
+                continue
+
+        # Validate
+        if ftype == "file":
+            uploaded = [f for f in raw[fid] if f and f.filename]
+            err = get_field_validation_error(field, None, uploaded_files=uploaded or None)
+        else:
+            err = get_field_validation_error(field, raw[fid])
+
+        if err:
+            errors.append(err)
+
+    if errors:
+        for err in errors:
+            flash(err, "error")
+        return redirect(url_for("public.index", form=slug))
+
+    # ── save files and build final data dict ───────────────────────────────────
+    data = {}
+    for field in fields:
+        fid   = field["id"]
+        ftype = field["type"]
+        if ftype == "file":
+            uploaded_files = [f for f in raw[fid] if f and f.filename]
+            data[fid] = [r for f in uploaded_files for r in [_save_upload(f, field)] if r]
+        elif ftype == "phone":
+            # Store only the 10 digits; display layer always prepends +91
+            import re as _re
+            digits = _re.sub(r"\D", "", str(raw[fid]))
+            data[fid] = digits
+        else:
+            data[fid] = raw[fid]
 
     prefix    = "".join(w[0] for w in form_config.name.upper().split())[:6]
     count     = form_config.submissions.count() + 1
@@ -123,6 +178,7 @@ def submit(slug):
                 sub.submitter_email = val.strip() or None
             if any(label_lower == k for k in ("name", "full name", "your name", "full_name")) and not sub.submitter_name:
                 sub.submitter_name = val.strip() or None
+
     db.session.add(sub)
     db.session.commit()
 
@@ -130,11 +186,20 @@ def submit(slug):
     try:
         from services.mail_service import enqueue_event
         enqueue_event("ticket_submitted", submission=sub)
-        db.session.commit() 
+        db.session.commit()
     except Exception:
         pass
 
     return redirect(url_for("public.success", slug=slug))
+
+
+def _check_condition(get_val_fn, cond):
+    """Return True if a single condition is satisfied."""
+    field_val  = get_val_fn(cond["field_id"])
+    cond_value = cond["value"]
+    if isinstance(field_val, list):
+        return cond_value in field_val
+    return field_val == cond_value
 
 
 @public_bp.route("/success/<slug>")

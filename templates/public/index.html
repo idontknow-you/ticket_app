@@ -41,23 +41,21 @@
 
         {% set sorted = active_form.sorted_fields %}
 
-        <form method="POST" action="{{ url_for('public.submit', slug=active_form.slug) }}" enctype="multipart/form-data" novalidate>
+        <form id="publicForm" method="POST" action="{{ url_for('public.submit', slug=active_form.slug) }}" enctype="multipart/form-data" novalidate>
           {% set base_cls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-ink placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition" %}
 
           <!-- 12-column grid -->
           <div style="display:grid; grid-template-columns: repeat(12, 1fr); gap: 16px;" id="formGrid">
             {% for field in sorted %}
 
-              {#
-                A field is conditional if it has at least one condition with a non-empty
-                field_id and value. Such fields start hidden and are revealed when all
-                their AND conditions are satisfied.
-              #}
               {% set has_conditions = field.conditions and field.conditions | selectattr('field_id') | selectattr('value') | list | length > 0 %}
 
               <div
                 id="field-wrap-{{ field.id }}"
                 data-field-id="{{ field.id }}"
+                data-field-type="{{ field.type }}"
+                data-required="{{ 'true' if field.required else 'false' }}"
+                data-label="{{ field.label | e }}"
                 style="grid-column: span {{ field.col_span if field.col_span else 12 }}{% if has_conditions %}; display:none{% endif %}"
                 {% if has_conditions %}
                   data-conditions="{{ field.conditions | tojson | forceescape }}"
@@ -68,15 +66,18 @@
                   {% if field.required %}<span class="text-red-400 ml-0.5">*</span>{% endif %}
                 </label>
 
+                {# ── error message placeholder ── #}
+                <p class="field-error hidden text-xs text-red-500 mb-1.5" id="err-{{ field.id }}"></p>
+
                 {% if field.type == 'textarea' %}
-                  <textarea name="{{ field.id }}" rows="4"
+                  {# free text — no character restrictions #}
+                  <textarea name="{{ field.id }}" id="inp-{{ field.id }}" rows="4"
                     {% if field.required %}required{% endif %}
                     placeholder="{{ field.placeholder or '' }}"
                     class="{{ base_cls }} resize-none"></textarea>
 
                 {% elif field.type == 'select' %}
-                  <select name="{{ field.id }}"
-                    id="sel-{{ field.id }}"
+                  <select name="{{ field.id }}" id="inp-{{ field.id }}"
                     {% if field.required %}required{% endif %}
                     class="{{ base_cls }}"
                     data-trigger-id="{{ field.id }}">
@@ -114,6 +115,25 @@
                     {% endfor %}
                   </div>
 
+                {% elif field.type == 'phone' %}
+                  {# Phone: +91 prefix visible, user types 10 digits only #}
+                  <div class="flex rounded-xl overflow-hidden border border-gray-200 bg-gray-50
+                              focus-within:ring-2 focus-within:ring-gray-900 focus-within:bg-white transition">
+                    <span class="flex items-center px-3.5 text-sm font-medium text-ink bg-gray-100
+                                 border-r border-gray-200 select-none whitespace-nowrap">
+                      +91
+                    </span>
+                    <input type="tel" name="{{ field.id }}" id="inp-{{ field.id }}"
+                      {% if field.required %}required{% endif %}
+                      placeholder="{{ field.placeholder or '10-digit mobile number' }}"
+                      maxlength="10"
+                      inputmode="numeric"
+                      pattern="[0-9]{10}"
+                      oninput="this.value = this.value.replace(/\D/g, '').slice(0, 10)"
+                      class="flex-1 bg-transparent px-3 py-2.5 text-sm text-ink placeholder-gray-300
+                             focus:outline-none">
+                  </div>
+
                 {% elif field.type == 'file' %}
                   {% set btn_label  = field.file_label if field.file_label else 'Attachments' %}
                   {% set max_files  = (field.max_files | int) if field.max_files else 1 %}
@@ -143,7 +163,7 @@
 
                   <input type="file" id="picker-{{ field.id }}" multiple
                     {% if accept_str %}accept="{{ accept_str }}"{% endif %} class="sr-only"
-                    onchange="accumulateFiles('{{ field.id }}', this, {{ max_files }}, '{{ size_val }}', '{{ size_unit }}')">
+                    onchange="accumulateFiles('{{ field.id }}', this, {{ max_files }}, '{{ size_val }}', '{{ size_unit }}', {{ allowed_types | tojson }})">
 
                   {% if allowed_types and not has_wildcard %}
                     {% set type_labels = {
@@ -162,8 +182,37 @@
                   {% if max_files > 1 %}{% set _ = hints.append('up to ' ~ max_files ~ ' files') %}{% endif %}
                   {% if hints %}<p class="mt-1 text-xs text-gray-400">{{ hints | join(' · ') }}</p>{% endif %}
 
+                {% elif field.type == 'date' %}
+                  {# max = today to prevent future dates #}
+                  <input type="date" name="{{ field.id }}" id="inp-{{ field.id }}"
+                    {% if field.required %}required{% endif %}
+                    max="{{ '' }}"
+                    class="{{ base_cls }}"
+                    data-no-future="true">
+
+                {% elif field.type == 'number' %}
+                  <input type="number" name="{{ field.id }}" id="inp-{{ field.id }}"
+                    {% if field.required %}required{% endif %}
+                    min="0"
+                    placeholder="{{ field.placeholder or '' }}"
+                    class="{{ base_cls }}">
+
+                {% elif field.type == 'email' %}
+                  <input type="email" name="{{ field.id }}" id="inp-{{ field.id }}"
+                    {% if field.required %}required{% endif %}
+                    placeholder="{{ field.placeholder or '' }}"
+                    class="{{ base_cls }}">
+
+                {% elif field.type == 'text' %}
+                  {# Letters, spaces, hyphens only — enforced on input and on submit #}
+                  <input type="text" name="{{ field.id }}" id="inp-{{ field.id }}"
+                    {% if field.required %}required{% endif %}
+                    placeholder="{{ field.placeholder or '' }}"
+                    class="{{ base_cls }}"
+                    oninput="restrictLettersOnly(this)">
+
                 {% else %}
-                  <input type="{{ field.type }}" name="{{ field.id }}"
+                  <input type="text" name="{{ field.id }}" id="inp-{{ field.id }}"
                     {% if field.required %}required{% endif %}
                     placeholder="{{ field.placeholder or '' }}"
                     class="{{ base_cls }}">
@@ -174,7 +223,7 @@
           </div>
 
           <div class="mt-8">
-            <button type="submit"
+            <button type="submit" id="submitBtn"
               class="bg-ink hover:bg-gray-800 text-white text-sm font-medium px-7 py-2.5 rounded-xl transition">
               Submit
             </button>
@@ -193,6 +242,167 @@
 </div>
 
 <script>
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function restrictLettersOnly(inp) {
+  // Allow letters, spaces, hyphens in real time
+  inp.value = inp.value.replace(/[^A-Za-z\s\-]/g, '');
+}
+
+function setToday() {
+  // Set max="" to today's date for all date inputs with data-no-future
+  const today = new Date().toISOString().split('T')[0];
+  document.querySelectorAll('input[data-no-future]').forEach(inp => {
+    inp.max = today;
+  });
+}
+
+// ── Client-side validation on submit ─────────────────────────────────────────
+
+document.getElementById('publicForm').addEventListener('submit', function(e) {
+  let hasError = false;
+
+  // Clear previous errors
+  document.querySelectorAll('.field-error').forEach(el => {
+    el.textContent = '';
+    el.classList.add('hidden');
+  });
+  document.querySelectorAll('.inp-error').forEach(el => el.classList.remove('inp-error'));
+
+  // Walk all visible field wrappers
+  document.querySelectorAll('#formGrid > div[data-field-id]').forEach(wrap => {
+    if (wrap.style.display === 'none') return; // hidden by branching — skip
+
+    const fieldId  = wrap.dataset.fieldId;
+    const ftype    = wrap.dataset.fieldType;
+    const required = wrap.dataset.required === 'true';
+    const label    = wrap.dataset.label || 'This field';
+    let   error    = null;
+
+    if (ftype === 'text') {
+      const inp = document.getElementById('inp-' + fieldId);
+      if (!inp) return;
+      const val = inp.value.trim();
+      if (required && !val) {
+        error = `${label} is required.`;
+      } else if (val && !/^[A-Za-z\s\-]+$/.test(val)) {
+        error = `${label} must contain letters only.`;
+      }
+
+    } else if (ftype === 'email') {
+      const inp = document.getElementById('inp-' + fieldId);
+      if (!inp) return;
+      const val = inp.value.trim();
+      if (required && !val) {
+        error = `${label} is required.`;
+      } else if (val && !/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(val)) {
+        error = `${label} must be a valid email address.`;
+      }
+
+    } else if (ftype === 'phone') {
+      const inp = document.getElementById('inp-' + fieldId);
+      if (!inp) return;
+      const digits = inp.value.replace(/\D/g, '');
+      if (required && !digits) {
+        error = `${label} is required.`;
+      } else if (digits && digits.length !== 10) {
+        error = `${label} must be exactly 10 digits.`;
+      }
+
+    } else if (ftype === 'number') {
+      const inp = document.getElementById('inp-' + fieldId);
+      if (!inp) return;
+      const val = inp.value.trim();
+      if (required && val === '') {
+        error = `${label} is required.`;
+      } else if (val !== '' && isNaN(Number(val))) {
+        error = `${label} must be a valid number.`;
+      }
+
+    } else if (ftype === 'date') {
+      const inp = document.getElementById('inp-' + fieldId);
+      if (!inp) return;
+      const val = inp.value;
+      if (required && !val) {
+        error = `${label} is required.`;
+      } else if (val) {
+        const today = new Date().toISOString().split('T')[0];
+        if (val > today) {
+          error = `${label} cannot be a future date.`;
+        }
+      }
+
+    } else if (ftype === 'select') {
+      const inp = document.getElementById('inp-' + fieldId);
+      if (!inp) return;
+      if (required && !inp.value) {
+        error = `${label} is required.`;
+      }
+
+    } else if (ftype === 'radio') {
+      if (required) {
+        const checked = wrap.querySelector('input[type=radio]:checked');
+        if (!checked) error = `${label} is required.`;
+      }
+
+    } else if (ftype === 'checkbox') {
+      if (required) {
+        const checked = wrap.querySelector('input[type=checkbox]:checked');
+        if (!checked) error = `Please select at least one option for ${label}.`;
+      }
+
+    } else if (ftype === 'file') {
+      const realInput = document.getElementById('real-input-' + fieldId);
+      if (required && (!realInput || realInput.files.length === 0)) {
+        error = `${label} is required.`;
+      }
+    }
+
+    if (error) {
+      hasError = true;
+      const errEl = document.getElementById('err-' + fieldId);
+      if (errEl) {
+        errEl.textContent = error;
+        errEl.classList.remove('hidden');
+      }
+      // Highlight input
+      const inp = document.getElementById('inp-' + fieldId);
+      if (inp) inp.style.borderColor = '#f87171';
+      // Scroll to first error
+      if (hasError && document.querySelector('.field-error:not(.hidden)')) {
+        const first = document.querySelector('.field-error:not(.hidden)');
+        if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  });
+
+  if (hasError) {
+    e.preventDefault();
+    // Scroll to the first visible error
+    const firstErr = document.querySelector('.field-error:not(.hidden)');
+    if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+
+// Clear error styling on input
+document.getElementById('formGrid').addEventListener('input', function(e) {
+  const inp   = e.target;
+  const wrap  = inp.closest('div[data-field-id]');
+  if (!wrap) return;
+  const fid   = wrap.dataset.fieldId;
+  const errEl = document.getElementById('err-' + fid);
+  if (errEl) { errEl.textContent = ''; errEl.classList.add('hidden'); }
+  inp.style.borderColor = '';
+});
+document.getElementById('formGrid').addEventListener('change', function(e) {
+  const inp   = e.target;
+  const wrap  = inp.closest('div[data-field-id]');
+  if (!wrap) return;
+  const fid   = wrap.dataset.fieldId;
+  const errEl = document.getElementById('err-' + fid);
+  if (errEl) { errEl.textContent = ''; errEl.classList.add('hidden'); }
+});
+
 // ── file attachment logic ─────────────────────────────────────────────────────
 const _dt = {};
 
@@ -200,18 +410,56 @@ function triggerPicker(fieldId) {
   document.getElementById('picker-' + fieldId).click();
 }
 
-function accumulateFiles(fieldId, picker, maxF, sizeVal, sizeUnit) {
+function _fileMatchesAllowedTypes(file, allowedTypes) {
+  if (!allowedTypes || allowedTypes.length === 0 || allowedTypes.includes('*')) return true;
+  const name = file.name.toLowerCase();
+  const mime = file.type || '';
+  const ext  = name.includes('.') ? '.' + name.split('.').pop() : '';
+  for (const rule of allowedTypes) {
+    if (rule === '*') return true;
+    if (rule.endsWith('/*')) {
+      const cat = rule.split('/')[0];
+      if (mime.startsWith(cat + '/')) return true;
+    } else if (rule.startsWith('.') || rule.includes(',')) {
+      // e.g. ".doc,.docx"
+      const exts = rule.split(',').map(s => s.trim());
+      if (exts.includes(ext)) return true;
+    } else {
+      // exact MIME
+      if (mime === rule) return true;
+    }
+  }
+  return false;
+}
+
+function accumulateFiles(fieldId, picker, maxF, sizeVal, sizeUnit, allowedTypes) {
   const newFiles  = Array.from(picker.files);
   const unitBytes = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 };
   const maxBytes  = sizeVal ? parseFloat(sizeVal) * (unitBytes[sizeUnit] || unitBytes.MB) : null;
   if (!_dt[fieldId]) _dt[fieldId] = new DataTransfer();
   const dt = _dt[fieldId];
+
   for (const f of newFiles) {
     if (Array.from(dt.files).some(x => x.name === f.name && x.size === f.size)) continue;
-    if (maxBytes && f.size > maxBytes) { alert(`"${f.name}" exceeds the ${sizeVal}${sizeUnit} limit per file.`); continue; }
-    if (dt.files.length >= maxF) { alert(`You can attach at most ${maxF} file${maxF !== 1 ? 's' : ''}.`); break; }
+
+    // Type check
+    if (!_fileMatchesAllowedTypes(f, allowedTypes)) {
+      alert(`"${f.name}" is not an allowed file type.`);
+      continue;
+    }
+    // Size check
+    if (maxBytes && f.size > maxBytes) {
+      alert(`"${f.name}" exceeds the ${sizeVal}${sizeUnit} limit per file.`);
+      continue;
+    }
+    // Count check
+    if (dt.files.length >= maxF) {
+      alert(`You can attach at most ${maxF} file${maxF !== 1 ? 's' : ''}.`);
+      break;
+    }
     dt.items.add(f);
   }
+
   document.getElementById('real-input-' + fieldId).files = dt.files;
   picker.value = '';
   renderStrip(fieldId, dt.files);
@@ -263,156 +511,78 @@ function renderStrip(fieldId, files) {
 }
 
 // ── BRANCHING ENGINE ──────────────────────────────────────────────────────────
-//
-// Each conditional field wrapper has:
-//   data-conditions="[{field_id, value, operator}, ...]"   ← AND/OR logic per condition
-//
-// When any trigger field changes, we re-evaluate ALL conditional fields.
-// A field becomes visible when its conditions are satisfied based on the logic.
-// When a field is hidden, all its inputs are cleared so they don't submit.
-
-const _fieldValues = {};
 
 function getFieldValue(fieldId) {
   if (!fieldId) return '';
-  
-  // select
-  const sel = document.getElementById('sel-' + fieldId);
-  if (sel) {
-    return sel.value || '';
-  }
-
-  // radio
+  const sel = document.getElementById('sel-' + fieldId) || document.getElementById('inp-' + fieldId);
+  if (sel && sel.tagName === 'SELECT') return sel.value || '';
   const radioGroup = document.getElementById('radio-group-' + fieldId);
   if (radioGroup) {
     const checked = radioGroup.querySelector('input[type=radio]:checked');
     return checked ? checked.value : '';
   }
-
-  // checkbox
   const cbGroup = document.getElementById('checkbox-group-' + fieldId);
   if (cbGroup) {
-    const checked = Array.from(cbGroup.querySelectorAll('input[type=checkbox]:checked'))
-      .map(cb => cb.value);
-    return checked;
+    return Array.from(cbGroup.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
   }
-
   return '';
 }
 
 function valueMatches(fieldValue, condValue) {
   if (!condValue) return false;
-  
-  if (Array.isArray(fieldValue)) {
-    // Checkbox: condition satisfied if condValue is among checked values
-    return fieldValue.includes(condValue);
-  }
-  
-  // Direct comparison for select/radio
+  if (Array.isArray(fieldValue)) return fieldValue.includes(condValue);
   return fieldValue === condValue;
 }
 
 function evaluateAllConditions() {
   const conditionalWraps = document.querySelectorAll('[data-conditions]');
-
   conditionalWraps.forEach(wrap => {
     let conditions;
     const condAttr = wrap.getAttribute('data-conditions');
-    
-    if (!condAttr) {
-      wrap.style.display = '';
-      return;
-    }
-
-    try { 
-      conditions = JSON.parse(condAttr);
-    } catch (e) { 
-      console.warn('Failed to parse conditions for field', wrap.id, ':', e, 'raw:', condAttr);
-      wrap.style.display = '';
-      return; 
-    }
-
-    if (!Array.isArray(conditions)) {
-      wrap.style.display = '';
-      return;
-    }
-
-    // Filter to valid conditions (both field_id and value populated)
+    if (!condAttr) { wrap.style.display = ''; return; }
+    try { conditions = JSON.parse(condAttr); } catch (e) { wrap.style.display = ''; return; }
+    if (!Array.isArray(conditions)) { wrap.style.display = ''; return; }
     const validConditions = conditions.filter(c => c && c.field_id && c.value);
-    
-    if (!validConditions.length) { 
-      wrap.style.display = ''; 
-      return; 
-    }
+    if (!validConditions.length) { wrap.style.display = ''; return; }
 
-    // Evaluate conditions with AND/OR operators
     let result = valueMatches(getFieldValue(validConditions[0].field_id), validConditions[0].value);
-    
     for (let i = 1; i < validConditions.length; i++) {
       const c = validConditions[i];
       const conditionMet = valueMatches(getFieldValue(c.field_id), c.value);
-      const operator = c.operator || 'AND';
-      
-      if (operator === 'OR') {
-        result = result || conditionMet;
-      } else {
-        result = result && conditionMet;
-      }
+      result = (c.operator || 'AND') === 'OR' ? result || conditionMet : result && conditionMet;
     }
-    
-    const allMet = result;
-    const wasVisible = wrap.style.display !== 'none';
-    const nowVisible = allMet;
 
-    if (wasVisible && !nowVisible) {
-      // Hiding: clear all inputs in this field so they don't submit
+    const wasVisible = wrap.style.display !== 'none';
+    if (wasVisible && !result) {
       clearFieldWrap(wrap);
-      // Smooth hide
       wrap.style.transition = 'opacity .15s';
       wrap.style.opacity = '0';
       setTimeout(() => {
         wrap.style.display = 'none';
         wrap.style.opacity = '';
         wrap.style.transition = '';
-        // Re-evaluate in case other fields depended on this one
         evaluateAllConditions();
       }, 150);
-    } else if (!wasVisible && nowVisible) {
-      // Showing
+    } else if (!wasVisible && result) {
       wrap.style.display = '';
       wrap.style.opacity = '0';
       wrap.style.transition = 'opacity .2s';
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          wrap.style.opacity = '1';
-          setTimeout(() => { wrap.style.transition = ''; wrap.style.opacity = ''; }, 200);
-        });
-      });
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        wrap.style.opacity = '1';
+        setTimeout(() => { wrap.style.transition = ''; wrap.style.opacity = ''; }, 200);
+      }));
     }
   });
 }
 
 function clearFieldWrap(wrap) {
-  // Text / number / email / etc.
-  wrap.querySelectorAll('input[type=text], input[type=number], input[type=email], input[type=tel], input[type=date], input[type=time]')
-    .forEach(inp => { inp.value = ''; });
-
-  // Textarea
+  wrap.querySelectorAll('input[type=text], input[type=number], input[type=email], input[type=tel], input[type=date]')
+    .forEach(inp => { inp.value = ''; inp.style.borderColor = ''; });
   wrap.querySelectorAll('textarea').forEach(ta => { ta.value = ''; });
-
-  // Select
   wrap.querySelectorAll('select').forEach(sel => { sel.value = ''; });
-
-  // Radio
-  wrap.querySelectorAll('input[type=radio]').forEach(r => { r.checked = false; });
-
-  // Checkbox
-  wrap.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
-
-  // File inputs
+  wrap.querySelectorAll('input[type=radio], input[type=checkbox]').forEach(r => { r.checked = false; });
   wrap.querySelectorAll('input[type=file]').forEach(fi => {
     try { fi.value = ''; } catch (e) {}
-    // Also clear our DataTransfer accumulator
     const fieldId = fi.id.replace('real-input-', '');
     if (_dt[fieldId]) {
       _dt[fieldId] = new DataTransfer();
@@ -423,23 +593,23 @@ function clearFieldWrap(wrap) {
     if (strip) strip.innerHTML = '';
     if (label) { label.textContent = 'No file chosen'; label.style.color = ''; }
   });
+  // Also clear any inline error state
+  const fieldId = wrap.dataset.fieldId;
+  if (fieldId) {
+    const errEl = document.getElementById('err-' + fieldId);
+    if (errEl) { errEl.textContent = ''; errEl.classList.add('hidden'); }
+  }
 }
 
-// ── Wire up all trigger fields ────────────────────────────────────────────────
 function wireTriggers() {
-  // Select fields
   document.querySelectorAll('select[data-trigger-id]').forEach(sel => {
     sel.removeEventListener('change', evaluateAllConditions);
     sel.addEventListener('change', evaluateAllConditions);
   });
-
-  // Radio inputs
   document.querySelectorAll('input[type=radio][data-trigger-id]').forEach(radio => {
     radio.removeEventListener('change', evaluateAllConditions);
     radio.addEventListener('change', evaluateAllConditions);
   });
-
-  // Checkbox inputs
   document.querySelectorAll('input[type=checkbox][data-trigger-id]').forEach(cb => {
     cb.removeEventListener('change', evaluateAllConditions);
     cb.addEventListener('change', evaluateAllConditions);
@@ -447,15 +617,16 @@ function wireTriggers() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-// Wait for DOM to be ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
-    wireTriggers();
-    evaluateAllConditions();
-  });
-} else {
+function init() {
+  setToday();
   wireTriggers();
   evaluateAllConditions();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
 }
 </script>
 

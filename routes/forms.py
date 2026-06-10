@@ -1,4 +1,5 @@
 import re, uuid, json
+from datetime import date
 from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
 from flask_login import login_required, current_user
 from models import FormConfig, FormConfigVersion
@@ -6,7 +7,7 @@ from extensions import db
 
 forms_bp = Blueprint("forms", __name__, url_prefix="/forms")
 
-FIELD_TYPES = ["text", "textarea", "email", "number", "date", "select", "radio", "checkbox", "file"]
+FIELD_TYPES = ["text", "textarea", "email", "phone", "number", "date", "select", "radio", "checkbox", "file"]
 
 
 def _slugify(text):
@@ -50,6 +51,135 @@ def _can_edit():
 def _can_delete():
     return current_user.is_superadmin or current_user.has_permission("forms", "can_delete")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Validation utility  —  imported by public.py submit route
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_field_validation_error(field: dict, value, uploaded_files=None) -> str | None:
+    """
+    Validate a single submitted field value against its type rules.
+
+    Parameters
+    ----------
+    field          : field dict from FormConfigVersion.fields
+    value          : submitted string value (or list for checkbox)
+    uploaded_files : list of werkzeug FileStorage objects for 'file' fields
+
+    Returns a human-readable error string, or None if valid.
+    """
+    ftype    = field.get("type", "text")
+    label    = field.get("label", "This field")
+    required = field.get("required", False)
+
+    # ── required check ────────────────────────────────────────────────────────
+    empty = (
+        (not value and value != 0)
+        or (isinstance(value, list) and len(value) == 0)
+        or (ftype == "file" and not uploaded_files)
+    )
+    if required and empty:
+        return f"{label} is required."
+    if empty:
+        return None  # optional + empty → nothing to validate
+
+    # ── type-specific rules ───────────────────────────────────────────────────
+
+    if ftype == "text":
+        # Letters, spaces and hyphens only (names, subjects, etc.)
+        if not re.fullmatch(r"[A-Za-z\s\-]+", str(value)):
+            return f"{label} must contain letters only (no numbers or special characters)."
+
+    elif ftype == "email":
+        pattern = r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
+        if not re.fullmatch(pattern, str(value).strip()):
+            return f"{label} must be a valid email address."
+
+    elif ftype == "phone":
+        # Strip any non-digit characters the client may have sent, then check exactly 10
+        digits = re.sub(r"\D", "", str(value))
+        if len(digits) != 10:
+            return f"{label} must be exactly 10 digits (no country code)."
+
+    elif ftype == "number":
+        try:
+            float(str(value))
+        except ValueError:
+            return f"{label} must be a valid number."
+
+    elif ftype == "date":
+        # No future dates
+        try:
+            submitted = date.fromisoformat(str(value))
+            if submitted > date.today():
+                return f"{label} cannot be a future date."
+        except ValueError:
+            return f"{label} must be a valid date."
+
+    elif ftype in ("select", "radio"):
+        allowed = field.get("options", [])
+        if str(value) not in allowed:
+            return f"{label} contains an invalid selection."
+
+    elif ftype == "checkbox":
+        allowed = set(field.get("options", []))
+        submitted_vals = value if isinstance(value, list) else [value]
+        for v in submitted_vals:
+            if v not in allowed:
+                return f"{label} contains an invalid option."
+
+    elif ftype == "file":
+        files         = uploaded_files or []
+        max_files     = int(field.get("max_files") or 1)
+        max_size_v    = field.get("max_size_value")
+        max_size_u    = field.get("max_size_unit", "MB")
+        allowed_types = field.get("allowed_types", [])
+
+        # Count
+        if len(files) > max_files:
+            return f"{label}: maximum {max_files} file(s) allowed."
+
+        # Size
+        size_multipliers = {"KB": 1024, "MB": 1024 ** 2, "GB": 1024 ** 3}
+        if max_size_v:
+            max_bytes = int(max_size_v) * size_multipliers.get(max_size_u, 1024 ** 2)
+            for f_obj in files:
+                f_obj.seek(0, 2)
+                size = f_obj.tell()
+                f_obj.seek(0)
+                if size > max_bytes:
+                    return f"{label}: each file must be under {max_size_v}{max_size_u}."
+
+        # Type
+        if allowed_types and "*" not in allowed_types:
+            import mimetypes
+            for f_obj in files:
+                filename = f_obj.filename or ""
+                mime_type, _ = mimetypes.guess_type(filename)
+                ext = ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""
+                accepted = False
+                for rule in allowed_types:
+                    if rule == "*":
+                        accepted = True; break
+                    if rule.endswith("/*"):
+                        category = rule.split("/")[0]
+                        if mime_type and mime_type.startswith(category + "/"):
+                            accepted = True; break
+                    elif rule.startswith(".") or "," in rule:
+                        if ext and ext in rule.split(","):
+                            accepted = True; break
+                    else:
+                        if mime_type == rule:
+                            accepted = True; break
+                if not accepted:
+                    return f"{label}: file type not allowed for \"{filename}\"."
+
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Routes
+# ─────────────────────────────────────────────────────────────────────────────
 
 @forms_bp.route("/")
 @login_required
