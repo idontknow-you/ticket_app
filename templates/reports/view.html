@@ -411,7 +411,17 @@ function stateForStorage() {
     if (state.filters[f] instanceof Set && state.filters[f].size > 0)
       filters[f] = [...state.filters[f]];
   });
-  return { rows: state.rows, cols: state.cols, aggregator: state.agg, renderer: state.view, filters };
+  const params = new URL(window.location.href).searchParams;
+  return {
+    rows:       state.rows,
+    cols:       state.cols,
+    aggregator: state.agg,
+    renderer:   state.view,
+    filters,
+    date_range: params.get('date_range') || '0',
+    date_from:  params.get('date_from')  || '',
+    date_to:    params.get('date_to')    || '',
+  };
 }
 
 /* Save synchronously before any navigation (date range change etc.) */
@@ -473,7 +483,7 @@ function scheduleAutoSave() {
       const r = await fetch(SAVE_URL, { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify(stateForStorage()) });
       if (r.ok) {
-        clearSession();
+        
         autosaveEl.className = 'autosave saved'; autosaveTxt.textContent = 'Saved';
         setTimeout(() => { autosaveEl.className = 'autosave'; }, 2500);
       } else {
@@ -933,19 +943,32 @@ document.addEventListener('click', e => {
 });
 
 async function applyPreset(preset, from='', to='') {
-  /* Persist to server before navigating so the layout survives the reload.
-     Fall back to sessionStorage if the server save fails. */
-  saveSession(stateForStorage());
+  const payload = stateForStorage();
+  payload.date_range = preset;
+  payload.date_from  = from;
+  payload.date_to    = to;
+
+  saveSession(payload);
+
   if (CAN_SAVE) {
     try {
-      await fetch(SAVE_URL, { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(stateForStorage()) });
-    } catch(e) { /* session fallback already set */ }
+      await fetch(SAVE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch(e) {}
   }
+
   const url = new URL(window.location.href);
   url.searchParams.set('date_range', preset);
-  if (preset==='custom') { url.searchParams.set('date_from', from); url.searchParams.set('date_to', to); }
-  else { url.searchParams.delete('date_from'); url.searchParams.delete('date_to'); }
+  if (preset === 'custom') {
+    url.searchParams.set('date_from', from);
+    url.searchParams.set('date_to', to);
+  } else {
+    url.searchParams.delete('date_from');
+    url.searchParams.delete('date_to');
+  }
   window.location.href = url.toString();
 }
 
@@ -1017,6 +1040,9 @@ document.getElementById('del-modal')?.addEventListener('click', e => {
 });
 
 /* ── Init ──────────────────────────────────────────────────────────── */
+const _sess = loadSession();
+console.log('PAGE LOAD — session:', _sess, '| SAVED_CFG:', SAVED_CFG);
 renderAll();
+if (loadSession()) clearSession();
 </script>
 {% endblock %}
