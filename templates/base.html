@@ -99,8 +99,8 @@
              class="text-sm px-3 py-1.5 rounded-lg transition text-muted hover:text-ink hover:bg-faint">
             Submit Ticket
           </a>
-          <a href="{{ url_for('auth.logout') }}"
-             class="text-sm px-3 py-1.5 rounded-lg transition text-muted hover:text-ink hover:bg-faint">
+          <a href="{{ url_for('auth.logout') }}" onclick="sessionStorage.clear()" 
+            class="text-sm px-3 py-1.5 rounded-lg transition text-muted hover:text-ink hover:bg-faint">
             Sign out
           </a>
         {% else %}
@@ -132,5 +132,14 @@
     {% endwith %}
 
     {% block content %}{% endblock %}
+
+  <script>
+    window.addEventListener('pageshow', function(e) {
+      if (e.persisted) {
+        document.body.style.visibility = 'hidden';
+        window.location.reload();
+      }
+    });
+  </script>
   </body>
 </html>

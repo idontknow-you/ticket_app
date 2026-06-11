@@ -39,6 +39,13 @@ def create_app():
         if converted is None:
             return ""
         return converted.strftime(fmt)
+    
+    @app.after_request
+    def no_cache(response):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
 
     from routes import auth_bp, public_bp, tickets_bp, admin_bp, forms_bp, wiki_bp, mail_bp, reports_bp
     app.register_blueprint(auth_bp)
@@ -97,6 +104,7 @@ def _start_mail_scheduler(app):
 
     except Exception as e:
         app.logger.warning(f"[mail queue] could not start scheduler: {e}")
+
 
 
 if __name__ == "__main__":
