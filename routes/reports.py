@@ -159,7 +159,7 @@ def _compute_chart_data(report: Report, since=None, until=None):
 def index():
     reports = (
         Report.query
-        .filter_by(is_deleted=False)
+        .filter_by(is_deleted=False, is_permanently_deleted=False)
         .order_by(Report.created_at.desc())
         .all()
     )
@@ -167,7 +167,7 @@ def index():
     if _can_delete():
         deleted_reports = (
             Report.query
-            .filter_by(is_deleted=True)
+            .filter_by(is_deleted=True, is_permanently_deleted=False)
             .order_by(Report.deleted_at.desc())
             .all()
         )
@@ -244,7 +244,7 @@ def create():
 @login_required
 @permission_required("reports", "can_view")
 def view(report_id):
-    report = Report.query.filter_by(id=report_id, is_deleted=False).first_or_404()
+    report = Report.query.filter_by(id=report_id, is_deleted=False, is_permanently_deleted=False).first_or_404()
     cfg    = report.config or {}
 
     if "date_range" in request.args:
@@ -286,7 +286,7 @@ def view(report_id):
 @login_required
 @permission_required("reports", "can_create")
 def save_layout(report_id):
-    report = Report.query.filter_by(id=report_id, is_deleted=False).first_or_404()
+    report = Report.query.filter_by(id=report_id, is_deleted=False, is_permanently_deleted=False).first_or_404()
     payload = request.get_json(silent=True) or {}
 
     pivot_cfg = {
@@ -314,7 +314,7 @@ def save_layout(report_id):
 @login_required
 @permission_required("reports", "can_view")
 def chart_data(report_id):
-    report = Report.query.filter_by(id=report_id, is_deleted=False).first_or_404()
+    report = Report.query.filter_by(id=report_id, is_deleted=False, is_permanently_deleted=False).first_or_404()
     since, until, *_ = _parse_date_range(request.args)
     return jsonify(_compute_chart_data(report, since, until))
 
@@ -340,7 +340,7 @@ def form_fields():
 @login_required
 @permission_required("reports", "can_delete")
 def delete(report_id):
-    report = Report.query.filter_by(id=report_id, is_deleted=False).first_or_404()
+    report = Report.query.filter_by(id=report_id, is_deleted=False, is_permanently_deleted=False).first_or_404()
     report.soft_delete()
     db.session.commit()
     flash("Report moved to trash.", "success")
@@ -351,19 +351,18 @@ def delete(report_id):
 @login_required
 @permission_required("reports", "can_delete")
 def clear_trash():
-    trashed = Report.query.filter_by(is_deleted=True).all()
+    trashed = Report.query.filter_by(is_deleted=True, is_permanently_deleted=False).all()
     for r in trashed:
-        db.session.delete(r)
+        r.permanent_delete()          # soft "permanent" delete instead of db.session.delete
     db.session.commit()
     flash(f"Trash cleared ({len(trashed)} report{'s' if len(trashed) != 1 else ''} deleted).", "success")
     return redirect(url_for("reports.index"))
-
 
 @reports_bp.route("/<int:report_id>/restore", methods=["POST"])
 @login_required
 @permission_required("reports", "can_delete")
 def restore(report_id):
-    report = Report.query.filter_by(id=report_id, is_deleted=True).first_or_404()
+    report = Report.query.filter_by(id=report_id, is_deleted=True, is_permanently_deleted=False).first_or_404()
     report.is_deleted = False
     report.deleted_at = None
     db.session.commit()
